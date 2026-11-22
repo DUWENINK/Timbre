@@ -18,6 +18,11 @@ data class BookPlayViewState(
   val cover: String?,
   val skipSilence: Boolean,
   val loading: Boolean = false,
+  /**
+   * 直播源（HLS 滑动窗口）：进度条没有意义，显示「直播中」并禁用快进快退。
+   * 默认 false，点播书籍的行为完全不变。
+   */
+  val isLive: Boolean = false,
 ) {
 
   sealed interface SleepTimerViewState {

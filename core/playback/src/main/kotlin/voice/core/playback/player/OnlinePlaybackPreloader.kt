@@ -16,6 +16,7 @@ import okhttp3.OkHttpClient
 import voice.core.common.DispatcherProvider
 import voice.core.logging.api.Logger
 import voice.core.online.OnlineChapterRef
+import voice.core.online.OnlineHlsStreams
 import voice.core.online.OnlinePlaybackCatalog
 import voice.core.online.OnlinePreloadSettings
 import voice.core.online.OnlinePreloadSettingsStore
@@ -168,7 +169,10 @@ internal class OnlinePlaybackPreloader(
       val stream = runCatching {
         catalog.resolveStreamUrl(nextRef, reportErrors = false)
       }.getOrNull()
-      if (stream != null && catalog.measuredDurationMs(nextRef.source, nextRef.bookId, nextRef.chapterId) == null) {
+      if (stream != null &&
+        !OnlineHlsStreams.isHlsUrl(stream.url) &&
+        catalog.measuredDurationMs(nextRef.source, nextRef.bookId, nextRef.chapterId) == null
+      ) {
         // the head fetch hits the audio host, not the source api: it does not
         // touch the rate limit and turns the placeholder duration exact. It is
         // a blocking call, so it hops to io away from the player thread.

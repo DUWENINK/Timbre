@@ -75,6 +75,7 @@
     <string name="playback.action.play">播放</string>
     <string name="playback.action.play_pause">播放 / 暂停</string>
     <string name="playback.action.rewind">回退</string>
+    <string name="playback.live">直播中</string>
     <string name="playback.battery_optimization.action">更新</string>
     <string name="playback.battery_optimization.rationale">由于您的电源限制，可能会发生播放中断。</string>
     <string name="playback.chapter.next">下一节</string>

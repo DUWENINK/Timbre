@@ -660,6 +660,16 @@ public class OnlineBookCacheManager(
           if (consecutiveFailures >= ABORT_AFTER_CONSECUTIVE_FAILURES) break
           continue
         }
+        if (OnlineHlsStreams.isHlsUrl(stream.url)) {
+          // an HLS chapter has no single media file to store: writing the m3u8
+          // text as the chapter would make offline playback fail silently.
+          // Counted as handled so the job can finish instead of retrying it on
+          // every start, but left unmarked because nothing is on the device.
+          done++
+          consecutiveFailures = 0
+          publish { it.copy(done = done) }
+          continue
+        }
         val sampler = SpeedSampler()
         val outcome = downloadSlots.withPermit {
           downloadToCache(

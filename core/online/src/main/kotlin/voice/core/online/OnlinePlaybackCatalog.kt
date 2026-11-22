@@ -749,6 +749,16 @@ public class OnlinePlaybackCatalog(
   }
 
   /**
+   * Returns the url already resolved for [ref] without touching the network,
+   * or null when none is cached (yet). The playback factory uses this to tell
+   * whether a chapter has to be played as HLS; a miss keeps the chapter on the
+   * progressive path it always used, so nothing changes for direct links.
+   */
+  public fun peekStreamUrl(ref: OnlineChapterRef): ResolvedStream? {
+    return cachedStreamUrl(OnlineUri.build(ref.source, ref.bookId, ref.chapterId))
+  }
+
+  /**
    * Resolves a playable url for one online chapter. Runs on the playback
    * loading thread; network failures are reported through [playbackErrors]
    * and answered with null (which fails the load with a 404).

@@ -38,11 +38,18 @@ AI 会直接产出 `manifest.json` + 源脚本两个文件，按 [三步上手](
   返回 [{ id: '字符串', bookTitle, bookImage?, bookAnchor?, bookDesc?, count?, heat?, ...自定义字段 }]
 - chapters 入参 { bookId, page, size }（已合并 search 返回的自定义字段）
   返回 [{ chapter_id: '字符串', title, order?, duration?, ...自定义字段 }]
+  （必须一次返回完整列表：App 不会为章节翻第二页；params.size=0 表示不限，
+    源站分页要在脚本内部循环拉完，同一 chapter_id 只返回一次、order 连续。
+    直播章节（电台 / 电视直播）duration 填 0：App 会按直播处理，
+    不显示进度条、不记录播放位置。）
 - audio 入参 { bookId, chapterId }（已合并 chapters 返回的自定义字段）
   返回 'https://....mp3'
     或 { url: 'https://...' }
     或 { url: 'https://...', headers: { Referer: '...', 'User-Agent': '...' } }
-  第三种用于防盗链 CDN 站点：这些头由播放器在拉流时自动携带，脚本不要自己下载音频。
+    或 { url: 'https://.../index.m3u8', headers: { Referer: '...' } }   // HLS 播放列表
+  第三、四种用于防盗链 CDN 站点：这些头由播放器在拉流时自动携带，脚本不要自己下载音频。
+  url 路径以 `.m3u8` 结尾时播放器按 HLS 拉分片、解密 AES-128 密钥，headers 会同时作用于
+  清单、分片和 key 请求（详见开发指南「三·七、HLS 播放列表」）。
 - 跨阶段传值：把下一阶段需要的字段（内部专辑 id、章节序号等）直接放进返回对象，会自动
   透传到下一阶段的 params；透传缓存只在进程内，脚本要做兜底（拿不到就重新请求）。
 
@@ -155,6 +162,8 @@ AI 会直接产出 `manifest.json` + 源脚本两个文件，按 [三步上手](
 ② 取第一本 → chapters({bookId, page:1, size:30}) → 章节数 + 前 3 章的 chapter_id/title
 ③ 取第一章 → audio({bookId, chapterId}) → 直链
 ④ 对直链发 HEAD（带脚本设置的 User-Agent）→ 确认 2xx 且 content-type 是音频
+   （若 audio 返回的是 .m3u8，content-type 通常是 application/vnd.apple.mpegurl，
+     改判 2xx 且响应正文以 #EXTM3U 开头即可）
 任何一步抛错、结果为空或字段缺失，都算未通过。
 
 【第三步：定位与修复】

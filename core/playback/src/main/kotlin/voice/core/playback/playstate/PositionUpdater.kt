@@ -125,6 +125,10 @@ class PositionUpdater(
    */
   suspend fun flushPositionNow(force: Boolean = true): Unit = withContext(dispatcherProvider.mainImmediate) {
     val player = player ?: return@withContext
+    // 直播（HLS 滑动窗口）没有可恢复的时间轴：position 是窗口内的偏移，
+    // 窗口每滚一次就会回退，duration 只是窗口长度。写回去会让书签乱跳、
+    // 章节时长变成 30 秒左右。点播（含点播型 HLS）不受影响。
+    if (player.isCurrentMediaItemLive) return@withContext
     val mediaItem = player.currentMediaItem ?: return@withContext
     val currentPosition = player.currentPosition
       .takeIf { it >= 0 } ?: return@withContext

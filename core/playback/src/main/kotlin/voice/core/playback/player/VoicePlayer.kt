@@ -4,7 +4,9 @@ import androidx.datastore.core.DataStore
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -12,6 +14,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import voice.core.analytics.api.Analytics
 import voice.core.common.DispatcherProvider
@@ -24,26 +27,44 @@ import voice.core.data.store.BtSkipToChapterStore
 import voice.core.data.store.CurrentBookStore
 import voice.core.data.store.SeekTimeStore
 import voice.core.logging.api.Logger
+import voice.core.online.OnlineHlsStreams
 import voice.core.online.OnlinePlaybackCatalog
 import voice.core.online.OnlinePreloadSettings
 import voice.core.online.OnlinePreloadSettingsStore
 import voice.core.online.OnlineSourceStreamingClient
+import voice.core.online.OnlineUri
+import voice.core.online.ResolvedStream
 import voice.core.playback.misc.Decibel
 import voice.core.playback.misc.VolumeGain
 import voice.core.playback.session.MediaId
 import voice.core.playback.session.MediaItemProvider
+import voice.core.playback.session.OnlineHlsMediaSourceFactory
 import voice.core.playback.session.bookId
 import voice.core.playback.session.playbackItemForPosition
 import voice.core.playback.session.positionInMediaItem
+import voice.core.playback.session.realChapterId
 import voice.core.playback.session.toMediaIdOrNull
 import voice.core.sleeptimer.SleepTimer
 import voice.core.sleeptimer.SleepTimerState
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.ZERO
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTime
+
+/** Upper bound for the pre-play url resolve of the starting chapter. */
+private const val PRIME_TIMEOUT_MS = 8_000L
+
+/** Refreshes per chapter before a dead playlist link is reported to the user. */
+private const val MAX_HLS_REFRESHES = 2
+
+/** Upper bound for the per-chapter refresh counters. */
+private const val MAX_TRACKED_HLS_REFRESHES = 128
+
+/** Server answers that mean "this signed link is no longer usable". */
+private val HLS_EXPIRED_STATUS_CODES = setOf(401, 403, 404, 410)
 
 @Inject
 class VoicePlayer(
@@ -122,9 +143,170 @@ class VoicePlayer(
     dispatcherProvider = dispatcherProvider,
   )
 
+  /**
+   * Chapters whose url was not resolved when the playlist was built cannot be
+   * recognised as HLS by the media source factory, so they would start on the
+   * progressive path and fail on a playlist. This listener rebuilds such a
+   * chapter once its url is known - only that chapter, and only while it is
+   * still the one playing. Direct links resolve to a media url and are left
+   * untouched.
+   */
+  private val hlsRebuildListener = object : Player.Listener {
+    override fun onMediaItemTransition(
+      mediaItem: MediaItem?,
+      reason: Int,
+    ) {
+      if (mediaItem != null) rebuildAsHlsIfNeeded(mediaItem)
+    }
+
+    override fun onPlayerError(error: PlaybackException) {
+      refreshExpiredHlsLink(error)
+    }
+  }
+
+  /** Chapter uris whose HLS re-resolve is in flight, so a duplicate is skipped. */
+  private val hlsRebuildsInFlight = ConcurrentHashMap.newKeySet<String>()
+
+  /** Chapter uris whose expired playlist link is being refreshed. */
+  private val hlsRefreshesInFlight = ConcurrentHashMap.newKeySet<String>()
+
+  /** Refreshes per chapter, so a source that keeps handing out dead links stops. */
+  private val hlsRefreshCounts = ConcurrentHashMap<String, Int>()
+
+  private fun rebuildAsHlsIfNeeded(mediaItem: MediaItem) {
+    val configuration = mediaItem.localConfiguration ?: return
+    val chapterUri = configuration.uri.toString()
+    if (!OnlineUri.isOnlineUri(chapterUri)) return
+    // already built from a playlist url by the media source factory
+    if (OnlineHlsStreams.isHandled(chapterUri)) return
+    val ref = OnlineUri.parse(chapterUri) ?: return
+
+    val cached = onlinePlaybackCatalog.peekStreamUrl(ref)
+    if (cached != null) {
+      if (OnlineHlsStreams.isHlsUrl(cached.url)) {
+        // never mutate the playlist from inside the transition callback: the
+        // replace runs on the next dispatch, once the player settled on the item
+        scope.launch { replaceWithHls(chapterUri, mediaItem.mediaId, cached) }
+      }
+      return
+    }
+    if (!hlsRebuildsInFlight.add(chapterUri)) return
+    scope.launch {
+      try {
+        val stream = onlinePlaybackCatalog.resolveStreamUrl(ref, reportErrors = false) ?: return@launch
+        if (!OnlineHlsStreams.isHlsUrl(stream.url)) return@launch
+        replaceWithHls(chapterUri, mediaItem.mediaId, stream)
+      } finally {
+        hlsRebuildsInFlight.remove(chapterUri)
+      }
+    }
+  }
+
+  private fun replaceWithHls(
+    chapterUri: String,
+    mediaId: String,
+    stream: ResolvedStream,
+  ) {
+    // 另一次 transition 可能已经在这条 url 解析期间重建过该章：重复 replace
+    // 会把正在播放的内容从头重来，所以先看标记
+    if (OnlineHlsStreams.isHandled(chapterUri)) return
+    val index = player.currentMediaItemIndex
+    if (index == C.INDEX_UNSET || index !in 0 until player.mediaItemCount) return
+    val current = player.getMediaItemAt(index)
+    // the user may have moved on while the url was resolving
+    if (current.mediaId != mediaId) return
+    OnlineHlsStreams.remember(chapterUri, stream)
+    // marked before the replace: the transition it triggers must not resolve
+    // this chapter a second time
+    OnlineHlsStreams.markHandled(chapterUri)
+    player.replaceMediaItem(index, OnlineHlsMediaSourceFactory.hlsMediaItem(current, stream.url))
+  }
+
+  /**
+   * HLS direct links are signed and expire while a chapter plays. The
+   * streaming data source refreshes such a link when the server rejects it,
+   * but a playlist is fetched by the HLS pipeline itself, so a dead link would
+   * end the chapter. This asks the source for a fresh url after an auth or
+   * expiry status and rebuilds just that item, keeping the playback position.
+   * Bounded per chapter, so a source that keeps handing out dead links fails
+   * normally instead of looping.
+   */
+  private fun refreshExpiredHlsLink(error: PlaybackException) {
+    val status = httpStatusOf(error) ?: return
+    if (status !in HLS_EXPIRED_STATUS_CODES) return
+    val mediaItem = player.currentMediaItem ?: return
+    // chapter marks resolve to the same chapter, so a clipped playback of the
+    // chapter is refreshed as well
+    val mediaId = mediaItem.mediaId.toMediaIdOrNull() ?: return
+    val chapterId = mediaId.realChapterId ?: return
+    val chapterUri = chapterId.value
+    // only a chapter that is really playing from a playlist can be refreshed
+    if (!OnlineHlsStreams.isHandled(chapterUri)) return
+    if ((hlsRefreshCounts[chapterUri] ?: 0) >= MAX_HLS_REFRESHES) return
+    if (!hlsRefreshesInFlight.add(chapterUri)) return
+    val ref = OnlineUri.parse(chapterUri)
+    if (ref == null) {
+      hlsRefreshesInFlight.remove(chapterUri)
+      return
+    }
+    scope.launch {
+      try {
+        val expiredUrl = player.currentMediaItem?.localConfiguration?.uri?.toString()
+        val _ = onlinePlaybackCatalog.invalidateStreamUrl(ref)
+        val stream = onlinePlaybackCatalog.resolveStreamUrl(ref, reportErrors = false) ?: return@launch
+        if (!OnlineHlsStreams.isHlsUrl(stream.url)) return@launch
+        // the source handed out the same dead link: rebuilding would fail again
+        if (stream.url == expiredUrl) return@launch
+        val index = player.currentMediaItemIndex
+        if (index == C.INDEX_UNSET || index !in 0 until player.mediaItemCount) return@launch
+        val current = player.getMediaItemAt(index)
+        if (current.mediaId != mediaItem.mediaId) return@launch
+        val position = player.currentPosition.coerceAtLeast(0L)
+        if (hlsRefreshCounts.size > MAX_TRACKED_HLS_REFRESHES) hlsRefreshCounts.clear()
+        hlsRefreshCounts[chapterUri] = (hlsRefreshCounts[chapterUri] ?: 0) + 1
+        OnlineHlsStreams.remember(chapterUri, stream)
+        OnlineHlsStreams.markHandled(chapterUri)
+        player.replaceMediaItem(index, OnlineHlsMediaSourceFactory.hlsMediaItem(current, stream.url))
+        player.seekTo(index, position)
+        player.prepare()
+      } finally {
+        hlsRefreshesInFlight.remove(chapterUri)
+      }
+    }
+  }
+
+  /** First http status on the error's cause chain, when the failure was http. */
+  private fun httpStatusOf(error: PlaybackException): Int? {
+    var cause: Throwable? = error
+    var depth = 0
+    while (cause != null && depth < 8) {
+      if (cause is HttpDataSource.InvalidResponseCodeException) return cause.responseCode
+      cause = cause.cause
+      depth++
+    }
+    return null
+  }
+
+  /**
+   * Resolves the starting chapter's url before the playlist is handed over, so
+   * the media source factory can tell an HLS playlist from a direct link for
+   * the chapter that is about to play. Bounded, so a slow source cannot delay
+   * the hand-over: a miss keeps the progressive path and is corrected by
+   * [hlsRebuildListener] once the url arrives.
+   */
+  private suspend fun primeHlsChapter(prepared: PreparedBook?) {
+    if (prepared == null) return
+    val item = prepared.mediaItems.getOrNull(prepared.startIndex) ?: return
+    val ref = item.localConfiguration?.uri?.toString()?.let(OnlineUri::parse) ?: return
+    withTimeoutOrNull(PRIME_TIMEOUT_MS) {
+      onlinePlaybackCatalog.resolveStreamUrl(ref, reportErrors = false)
+    }
+  }
+
   init {
     player.addListener(endOfChapterSleepTimerListener)
     player.addListener(onlinePlaybackPreloader)
+    player.addListener(hlsRebuildListener)
   }
 
   fun forceSeekToNext() {
@@ -466,7 +648,9 @@ class VoicePlayer(
         val assemblyDuration = measureTime {
           // one IO hop: load the book, build a leading prefix and resolve cover.
           val prepared = withContext(dispatcherProvider.io) {
-            prepareBook(mediaId.id)
+            val assembling = prepareBook(mediaId.id)
+            primeHlsChapter(assembling)
+            assembling
           }
           if (prepared == null) {
             // 组装失败就放开标记，否则调用方会一直以为"已经设过"，

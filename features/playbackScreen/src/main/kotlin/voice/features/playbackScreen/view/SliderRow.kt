@@ -1,10 +1,17 @@
 package voice.features.playbackScreen.view
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -102,6 +109,34 @@ internal fun SliderRow(
         timeMs = duration.inWholeMilliseconds,
         durationMs = duration.inWholeMilliseconds,
       ),
+    )
+  }
+}
+
+/**
+ * 直播（HLS 滑动窗口）没有可拖动的时间轴：位置是窗口内偏移，窗口每滚一次
+ * 就会回退，时长只是窗口长度。这里只显示红点 + 「直播中」，不画进度条。
+ * 点播书籍（含点播型 HLS）继续走 [SliderRow]，行为完全不变。
+ */
+@Composable
+internal fun LiveRow() {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 16.dp, vertical = 12.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.Center,
+  ) {
+    Box(
+      modifier = Modifier
+        .size(8.dp)
+        .background(MaterialTheme.colorScheme.error, CircleShape),
+    )
+    Spacer(modifier = Modifier.size(8.dp))
+    Text(
+      text = stringResource(StringsR.string.playback_live),
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
   }
 }

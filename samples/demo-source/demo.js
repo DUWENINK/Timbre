@@ -41,6 +41,8 @@
     // ---------- 章节 ----------
     // 入参: { bookId, page, size, albumId(透传), ...search 自定义字段 }
     // 出参: [{ chapter_id, title, order?, duration?, ...自定义 }]
+    // 注意：必须返回完整列表，App 只为章节调用一次；size=0 表示不限，
+    //       源站分页时在脚本内循环拉完（同类写法见样例 l.js）。
     async chapters(params) {
       var albumId = String(params.albumId || params.bookId);
       var resp = await http.get(HOST + '/chapters/' + albumId, { timeoutMs: 20000 });

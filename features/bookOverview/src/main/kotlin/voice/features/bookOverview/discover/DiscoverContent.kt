@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -19,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -36,6 +39,7 @@ import voice.core.online.OnlineRecommendGroup
 import voice.core.online.OnlineSearchResult
 import voice.core.online.OnlineSourceService
 import voice.core.online.OnlineSourceServiceProvider
+import voice.features.bookOverview.paging.PagedList
 import voice.features.bookOverview.search.OnlineChaptersDialog
 import voice.features.bookOverview.search.OnlineResultRow
 
@@ -45,6 +49,19 @@ private data class RecommendSource(
   val description: String,
   val groups: List<OnlineRecommendGroup>,
 )
+
+/** Matches the limit the extension backend sends for one browse page. */
+private const val DISCOVER_PAGE_SIZE = 30
+
+/**
+ * Stable identity of a recommendation row, also used as the LazyColumn key.
+ * Duplicates are dropped before they reach the list (see [PagedList]) because
+ * a repeated key crashes Compose.
+ */
+private fun discoverKey(result: OnlineSearchResult): String =
+  result.source + result.bookId + result.title
+
+private fun OnlineRecommendGroup.cacheKey(): String = "$source/$groupId"
 
 /** Turns raw engine errors into something that tells the user what to do. */
 private fun loadErrorMessage(e: Exception): String {
@@ -71,12 +88,17 @@ internal fun DiscoverContent(
   var groupsLoading by remember { mutableStateOf(true) }
   var selectedSource by remember { mutableStateOf<String?>(null) }
   var selectedGroup by remember { mutableStateOf<OnlineRecommendGroup?>(null) }
-  var books by remember { mutableStateOf(emptyList<OnlineSearchResult>()) }
+  var paging by remember { mutableStateOf(PagedList<OnlineSearchResult>()) }
   var loading by remember { mutableStateOf(false) }
+  var loadingMore by remember { mutableStateOf(false) }
   var error by remember { mutableStateOf<String?>(null) }
+  var moreError by remember { mutableStateOf<String?>(null) }
   var retryToken by remember { mutableIntStateOf(0) }
-  var cachedBooks by remember { mutableStateOf(emptyMap<String, List<OnlineSearchResult>>()) }
+  var moreRetryToken by remember { mutableIntStateOf(0) }
+  var handledMoreRetry by remember { mutableIntStateOf(0) }
+  var cachedBooks by remember { mutableStateOf(emptyMap<String, PagedList<OnlineSearchResult>>()) }
   var chaptersFor by remember { mutableStateOf<OnlineSearchResult?>(null) }
+  val listState = rememberLazyListState()
 
   // groupBy keeps only sources that actually declared recommendation slots.
   val sources = remember(groups) {
@@ -111,14 +133,21 @@ internal fun DiscoverContent(
     // slot the user actually settles on issues a request. Without it every tap
     // started its own connection and they all timed out together.
     delay(250)
-    val cacheKey = "${group.source}/${group.groupId}"
+    val cacheKey = group.cacheKey()
     loading = true
+    loadingMore = false
     error = null
-    books = emptyList()
+    moreError = null
+    paging = PagedList()
     try {
       val result = service.browse(group.source, group.groupId, 1)
-      books = result
-      cachedBooks = cachedBooks + (cacheKey to result)
+      val loaded = paging.append(result, DISCOVER_PAGE_SIZE, ::discoverKey)
+      paging = loaded
+      cachedBooks = cachedBooks + (cacheKey to loaded)
+      // 换分类后列表从顶部开始，否则会停在上一分类的滚动位置，直接触发下一页。
+      // 空列表时页面显示转圈、LazyColumn 不在组合中，scrollToItem 会一直等
+      // layout，这里先判空。
+      if (loaded.items.isNotEmpty()) listState.scrollToItem(0)
     } catch (e: CancellationException) {
       // Switching slots (or swiping away) cancels the previous load.
       // Cancellation is not a failure and its message must never be shown.
@@ -126,9 +155,47 @@ internal fun DiscoverContent(
     } catch (e: Exception) {
       error = loadErrorMessage(e)
       // A flaky link must not blank the page: fall back to the last good list.
-      books = cachedBooks[cacheKey].orEmpty()
+      paging = cachedBooks[cacheKey] ?: PagedList()
+      if (paging.items.isNotEmpty()) listState.scrollToItem(0)
     }
     loading = false
+  }
+
+  // 触底加载下一页。三条终止条件由 PagedList 负责（空页 / 不满一页 /
+  // 整页重复），这里只判断「该不该发请求」。
+  //
+  // loading/loadingMore 故意不放进 key：它们只在协程内部变化，放进 key 会让
+  // 每次置 true 都取消并重启自己，导致请求被取消后重发。
+  val shouldLoadMore by remember {
+    derivedStateOf {
+      val info = listState.layoutInfo
+      val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
+      info.totalItemsCount > 0 && lastVisible >= info.totalItemsCount - 3
+    }
+  }
+  LaunchedEffect(shouldLoadMore, paging.page, paging.endReached, moreRetryToken) {
+    val group = selectedGroup ?: return@LaunchedEffect
+    val retryRequested = moreRetryToken > handledMoreRetry
+    if (!shouldLoadMore && !retryRequested) return@LaunchedEffect
+    if (loading || loadingMore || paging.endReached || !paging.isStarted) return@LaunchedEffect
+    handledMoreRetry = moreRetryToken
+    loadingMore = true
+    moreError = null
+    try {
+      val next = service.browse(group.source, group.groupId, paging.page + 1)
+      // 切了推荐位/源之后返回的旧页必须丢掉，否则会拼进新的列表
+      if (selectedGroup != group) return@LaunchedEffect
+      val appended = paging.append(next, DISCOVER_PAGE_SIZE, ::discoverKey)
+      paging = appended
+      cachedBooks = cachedBooks + (group.cacheKey() to appended)
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      // 保留已加载的内容，只在底部显示重试
+      moreError = loadErrorMessage(e)
+    } finally {
+      loadingMore = false
+    }
   }
 
   fun selectSource(source: String) {
@@ -213,17 +280,56 @@ internal fun DiscoverContent(
         }
       }
       when {
-        loading && books.isEmpty() -> {
+        loading && paging.items.isEmpty() -> {
           Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
           }
         }
         sources.isEmpty() -> Text(text = "未安装带推荐位的接口源", modifier = Modifier.padding(16.dp))
-        books.isEmpty() -> Text(text = "暂无推荐书籍", modifier = Modifier.padding(16.dp))
+        paging.items.isEmpty() -> Text(text = "暂无推荐书籍", modifier = Modifier.padding(16.dp))
         else -> {
-          LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(books, key = { it.source + it.bookId + it.title }) { result ->
+          LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            items(paging.items, key = ::discoverKey) { result ->
               OnlineResultRow(result = result, onClick = { chaptersFor = result })
+            }
+            when {
+              loadingMore -> item {
+                Row(
+                  modifier = Modifier.fillMaxWidth().padding(16.dp),
+                  horizontalArrangement = Arrangement.Center,
+                  verticalAlignment = Alignment.CenterVertically,
+                ) {
+                  CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                  Text(
+                    text = "加载更多…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 8.dp),
+                  )
+                }
+              }
+              moreError != null -> item {
+                Row(
+                  modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                ) {
+                  Text(
+                    text = moreError.orEmpty(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.weight(1f),
+                  )
+                  TextButton(onClick = { moreRetryToken++ }) { Text("重试") }
+                }
+              }
+              paging.endReached && paging.items.isNotEmpty() -> item {
+                Text(
+                  text = "已经到底了",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.fillMaxWidth().padding(16.dp),
+                )
+              }
             }
           }
         }

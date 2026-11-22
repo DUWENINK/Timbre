@@ -168,6 +168,7 @@
     <string name="playback.action.play_pause">Play / Pause</string>
     <!-- Label for the playback action that skips backward. -->
     <string name="playback.action.rewind">Rewind</string>
+    <string name="playback.live">Live</string>
     <!-- Action label for opening battery optimization settings. -->
     <string name="playback.battery_optimization.action">Update</string>
     <!-- Snackbar or prompt text explaining playback issues caused by power restrictions. -->

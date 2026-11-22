@@ -130,6 +130,15 @@ async search(params) {
 同构：请求书籍的章节列表，解析后返回 `chapter_id / title / order`，并把后续需要的  
 自定义字段（如原始章节号）塞回去透传给 audio。
 
+**必须一次返回完整列表**：App 只调用一次 `chapters`，不会为章节翻第二页。
+
+- `params.size = 0` 表示"不限"，不要写成 `parseInt(params.size, 10) || 30` 把 0 当默认值；
+- 源站是分页接口时，在脚本内部循环拉完所有页再返回（写法见 `samples` 里 `l.js` 的 `chapters`）；
+- 单页失败不要整本抛错：返回已拿到的章节，`log()` 出失败页码，让用户至少能听前面的；
+- 同一 `chapter_id` 只返回一次，`order` 从 1 连续递增（缺号会让播放顺序错乱）。
+- 直播章节（电台 / 电视直播）`duration` 填 `0`：App 会按直播处理——不显示进度条、
+  不记录播放位置。填了时长反而会被当成点播，出现进度来回跳的假象。
+
 ### 4. 音频：AES-ECB 加密请求体
 
 Python 原型：
@@ -414,6 +423,10 @@ my-source/
 **返回字段与 `search` 完全一致**。宿主会把它当成主源的搜索结果，所以点击后自动走
 `jdr:<主源id>` 的 `chapters()` / `audio()`，自定义字段（`albumId` 等）走同一套透传逻辑。
 
+**分页约定**：发现页会滑到底自动请求 `page + 1`，终止条件由宿主判断——
+返回空数组、返回条数少于 `limit`、或整页都是已加载过的条目，都会停止继续加载。
+所以老脚本即使忽略 `page` 一直返回同一批，也不会被无限请求。
+
 ### 4. 缓存语义（按推荐位独立）
 
 - `cacheMinutes: 180`：首次拉取后缓存 3 小时；有效期内再次点该推荐位，
@@ -432,6 +445,45 @@ my-source/
 | 报「推荐配置文件不存在」 | 写了 `recommenderConfig` 但打包时漏了该 JSON |
 | 点书进章节报错 | 推荐结果没带 `albumId`（或主源 chapters 依赖的其他透传字段） |
 | 一直转圈/超时 | 推荐接口本身慢：缩短单次超时并重试，或给该槽位加 `cacheMinutes` |
+
+---
+
+## 三·七、HLS 播放列表（m3u8）
+
+`audio` 也可以直接返回 m3u8 地址，播放器会按 HLS 解析清单、拉分片、解密密钥，
+契约不变（还是 `{url, headers}`），脚本不用自己拼分片：
+
+```js
+async audio(params) {
+  var detail = await apiGet('/book/' + params.bookId + '/chapter/' + params.chapterId);
+  return {
+    url: detail.data.play_url,                                 // .../index.m3u8?sign=...
+    headers: { Referer: 'https://example.com/' },              // 清单、分片、key 都会带
+  };
+}
+```
+
+识别规则：URL 路径以 `.m3u8`（或 `.m3u`）结尾，忽略 query 与 fragment，
+带签名参数的 `index.m3u8?sign=...` 同样识别。纯字符串返回也支持。
+
+要点：
+
+- **headers 的覆盖范围**：源返回的 headers 会附加到清单、分片（`.ts` / `.m4s` / `.aac`）
+  和 AES-128 的 key 请求。分片在别的 host 时，同主域（`a.cdn.com` 与 `b.cdn.com`）
+  仍会带上；跨主域只在当前仅有一个 HLS 章节播放时兜底，避免把 referer/cookie 发给无关站点。
+- **相对路径**：清单里的相对分片、相对 key 都基于 m3u8 的真实地址解析，脚本不用转成绝对地址。
+- **时长**：HLS 的真实时长来自清单的 `#EXTINF`，`chapters` 不返回 `duration` 也能显示正确进度；
+  列表里的占位时长会在播放后回写。
+- **过期自愈**：清单链接过期（401 / 403 / 404 / 410）时，播放器会让脚本重新解析一次并原地重建，
+  播放位置保持不变，每次播放最多 2 次，避免源一直下发死链时反复重试。
+- **直播清单**（缺 `#EXT-X-ENDLIST`，电台 / 电视直播）：**能播**。App 会自动识别
+  直播态——播放页显示「直播中」红点、不显示进度条、隐藏快进快退、不记录播放位置。
+  电台类源建议每台一本「书」、只有一集「直播」，`chapters` 的 `duration` 填 `0`。
+- **离线缓存**：HLS 章节不支持离线缓存（缓存任务会跳过，且不算失败）。直播源请在
+  `description` 里写明"不支持下载"，避免用户以为缓存坏了。
+- **不支持的**：DRM（Widevine / FairPlay）。
+- **鉴权**：自有服务器的 m3u8 不需要在 headers 里塞 token —— App 里配置的服务器地址 + token
+  会自动以 `Authorization: Bearer` 附加，且只发给该服务器的域名；源里显式写的 `Authorization` 优先。
 
 ---
 
@@ -523,8 +575,12 @@ zip 里多出一层（`my-source/manifest.json`），导入时报"包内缺少 m
 | "manifest.id 非法"          | 包 id 含大写/中文/空格/斜杠，只允许 `a-z 0-9 . _ -`                                |
 | 搜索没结果也没报错                 | `resp.status` 没判断，或 JSON 层级取错（先 `log(resp.body.slice(0,200))`）       |
 | 签名/加密对不上                  | 拼接顺序、时间戳是**秒**还是毫秒（`timestamp()` 秒 / `timestampMs()` 毫秒）、JSON 是否紧凑格式 |
+| 章节只显示前 30 / 50 集            | `chapters` 只返回了第一页：契约要求一次返回完整列表，App 不会翻第二页（见「3. 章节」）                      |
 | 章节透传字段拿不到                 | 确认上一阶段返回对象里确实带了该字段（透传缓存只在进程内，脚本要做兜底）                                 |
 | 证书报错                      | 源站证书链损坏时在 manifest 加 `"allowInsecure": true`（只影响该包）                  |
 | 播放时 403 / 搜索有结果但无法播放      | CDN 防盗链：audio 改返回 `{url, headers:{Referer:...}}`（见示例源 C），release 版看不了脚本日志，需 debug 版排障 |
+| 日志只拉了清单几 KB 就没声          | audio 返回的是 m3u8 但没被识别为 HLS：确认 **URL 路径**以 `.m3u8` 结尾（`?file=x.m3u8` 这种 query 里的后缀不算） |
+| HLS 能拉清单但分片/key 报 403     | 分片或 key 在另一个主域，headers 不下发：把 key 放回清单同域/相对路径，或在 `headers` 里补齐该 CDN 需要的 Referer/Cookie |
+| 直播播放时进度来回跳              | 源是直播流（清单无 `#EXT-X-ENDLIST`）：新版 App 会自动显示「直播中」并隐藏进度条；确认 `chapters` 的 `duration` 填了 `0` |
 | 接口 412 / 搜出来全是空           | 站点 Cookie 风控：先访问主页预热 Cookie（见示例源 C 第 1 点），并确认 UA 是浏览器 UA、请求间隔 ≥300ms  |
 | 想看请求长什么样                  | 脚本里 `log(url)`、`log(resp.body.slice(0, 200))`，Logcat 过滤 `jdr:`（**debug 版 APK 才有**） |

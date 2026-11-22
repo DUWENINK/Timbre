@@ -32,7 +32,12 @@
 // 标准字段（与参考契约一致，自定义字段会在阶段间透传）：
 //   search   → [{ id, bookTitle, bookImage?, bookAnchor?, bookDesc?, count?, heat?, ...自定义 }]
 //   chapters → [{ chapter_id, title, order?, duration?, ...自定义 }]
-//   audio    → "https://....mp3"（或 { url: "..." }）
+//              ⚠ 必须一次返回完整列表：App 不会为章节翻第二页。
+//              params.size = 0 表示"不限"，源站分页要在脚本内部循环拉完
+//              （参考样例 l.js 的 chapters），单页失败返回已拿到的部分。
+//   audio    → "https://....mp3" / { url: "..." } / { url, headers }
+//              url 路径以 .m3u8 结尾时按 HLS 播放，headers 会同时带到
+//              清单、分片和密钥请求（见开发指南「三·七、HLS 播放列表」）。
 // 透传规则：search 结果的自定义字段会合并进 chapters 的 params；
 //          chapters 结果的自定义字段会合并进 audio 的 params。
 //   params: search   = { keyword, page, limit }

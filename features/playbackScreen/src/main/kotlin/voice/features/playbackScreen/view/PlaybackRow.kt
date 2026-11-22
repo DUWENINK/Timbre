@@ -21,6 +21,8 @@ internal fun PlaybackRow(
   onRewindClick: () -> Unit,
   onFastForwardClick: () -> Unit,
   loading: Boolean = false,
+  /** 直播不可 seek：快进/快退没有意义，直接不显示。 */
+  live: Boolean = false,
 ) {
   Row(
     modifier = Modifier
@@ -28,8 +30,10 @@ internal fun PlaybackRow(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.Center,
   ) {
-    SkipButton(forward = false, onClick = onRewindClick)
-    Spacer(modifier = Modifier.size(16.dp))
+    if (!live) {
+      SkipButton(forward = false, onClick = onRewindClick)
+      Spacer(modifier = Modifier.size(16.dp))
+    }
 
     // the loading ring is wider than the button: the box keeps its size, so
     // showing and hiding the ring cannot move the button - and with it every
@@ -53,6 +57,8 @@ internal fun PlaybackRow(
       }
     }
     Spacer(modifier = Modifier.size(16.dp))
-    SkipButton(forward = true, onClick = onFastForwardClick)
+    if (!live) {
+      SkipButton(forward = true, onClick = onFastForwardClick)
+    }
   }
 }

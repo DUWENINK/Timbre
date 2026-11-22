@@ -16,6 +16,11 @@ data class LivePlaybackState(
   val positionMs: Long,
   val isPlaying: Boolean,
   val playbackSpeed: Float,
+  /**
+   * 直播（HLS 滑动窗口）没有可拖动的时间轴：position 是窗口内的偏移，
+   * 窗口一滚就会回退，duration 只是窗口长度。UI 据此隐藏进度条。
+   */
+  val isLive: Boolean = false,
 )
 
 internal fun MediaController.livePlaybackStateSnapshot(bookId: BookId? = null): LivePlaybackState? {
@@ -33,6 +38,7 @@ internal fun MediaController.livePlaybackStateSnapshot(bookId: BookId? = null): 
     positionMs = positionInChapter,
     isPlaying = isPlaying,
     playbackSpeed = playbackParameters.speed,
+    isLive = isCurrentMediaItemLive,
   )
 }
 

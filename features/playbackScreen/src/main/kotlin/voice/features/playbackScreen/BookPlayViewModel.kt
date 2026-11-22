@@ -55,6 +55,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 @AssistedInject
 class BookPlayViewModel(
@@ -151,7 +152,12 @@ class BookPlayViewModel(
     }
     val isPlaying = livePlaybackState?.isPlaying ?: (managerPlayState == PlayStateManager.PlayState.Playing)
 
-    return bookPlayViewState(book = book, isPlaying = isPlaying, livePosition = livePosition)
+    return bookPlayViewState(
+      book = book,
+      isPlaying = isPlaying,
+      livePosition = livePosition,
+      isLive = livePlaybackState?.isLive == true,
+    )
   }
 
   /**
@@ -210,7 +216,13 @@ class BookPlayViewModel(
       onlineCover = onlinePlaybackCatalog.onlineCover(bookId)
     }
 
-    return bookPlayViewState(book = overlaid, isPlaying = isPlaying, loading = loading, coverOverride = onlineCover)
+    return bookPlayViewState(
+      book = overlaid,
+      isPlaying = isPlaying,
+      loading = loading,
+      coverOverride = onlineCover,
+      isLive = livePlaybackState?.isLive == true,
+    )
   }
 
   /**
@@ -241,6 +253,7 @@ class BookPlayViewModel(
     loading: Boolean = false,
     coverOverride: String? = null,
     livePosition: PlaybackPosition? = null,
+    isLive: Boolean = false,
   ): BookPlayViewState {
     // the live position wins while it still belongs to the chapter the book
     // holds: the book only catches up when a position is persisted, the
@@ -273,11 +286,18 @@ class BookPlayViewModel(
       title = book.content.name,
       showPreviousNextButtons = hasMoreThanOneChapter,
       chapterName = currentMark.name.takeIf { hasMoreThanOneChapter },
-      duration = currentMark.durationMs.milliseconds,
+      // 直播章节没有可信时长（源给 0，且我们不再把窗口长度写回去）：
+      // ViewState 要求 duration 为正，这里给一个占位值，直播态不显示进度条
+      duration = if (isLive) {
+        currentMark.durationMs.milliseconds.coerceAtLeast(1.seconds)
+      } else {
+        currentMark.durationMs.milliseconds
+      },
       playedTime = positionInCurrentMark.milliseconds,
       cover = coverOverride ?: book.content.coverUrl,
       skipSilence = book.content.skipSilence,
       loading = loading,
+      isLive = isLive,
     )
   }
 

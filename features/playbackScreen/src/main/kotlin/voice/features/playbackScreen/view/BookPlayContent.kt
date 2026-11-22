@@ -58,11 +58,15 @@ internal fun BookPlayContent(
           )
         }
         Spacer(modifier = Modifier.size(20.dp))
-        SliderRow(
-          duration = viewState.duration,
-          playedTime = viewState.playedTime,
-          onSeek = onSeek,
-        )
+        if (viewState.isLive) {
+          LiveRow()
+        } else {
+          SliderRow(
+            duration = viewState.duration,
+            playedTime = viewState.playedTime,
+            onSeek = onSeek,
+          )
+        }
         Spacer(modifier = Modifier.size(16.dp))
         PlaybackRow(
           playing = viewState.playing,
@@ -70,6 +74,7 @@ internal fun BookPlayContent(
           onRewindClick = onRewindClick,
           onFastForwardClick = onFastForwardClick,
           loading = viewState.loading,
+          live = viewState.isLive,
         )
       }
     }
@@ -96,11 +101,15 @@ internal fun BookPlayContent(
         )
       }
       Spacer(modifier = Modifier.size(20.dp))
-      SliderRow(
-        duration = viewState.duration,
-        playedTime = viewState.playedTime,
-        onSeek = onSeek,
-      )
+      if (viewState.isLive) {
+        LiveRow()
+      } else {
+        SliderRow(
+          duration = viewState.duration,
+          playedTime = viewState.playedTime,
+          onSeek = onSeek,
+        )
+      }
       Spacer(modifier = Modifier.size(16.dp))
       PlaybackRow(
         playing = viewState.playing,
@@ -108,6 +117,7 @@ internal fun BookPlayContent(
         onRewindClick = onRewindClick,
         onFastForwardClick = onFastForwardClick,
         loading = viewState.loading,
+        live = viewState.isLive,
       )
       Spacer(modifier = Modifier.size(24.dp))
     }

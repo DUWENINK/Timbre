@@ -1,3 +1,5 @@
+@file:Suppress("UnstableApiUsage")
+
 package voice.core.playback.di
 
 import android.content.Context
@@ -8,6 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.datasource.DataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.extractor.DefaultExtractorsFactory
@@ -22,6 +25,8 @@ import kotlinx.coroutines.SupervisorJob
 import voice.core.featureflag.FeatureFlag
 import voice.core.featureflag.Media3AudioOffloadFeatureFlagQualifier
 import voice.core.online.OnlineDataSourceFactory
+import voice.core.online.OnlinePlaybackCatalog
+import voice.core.online.OnlineStreamAuthProvider
 import voice.core.online.OnlineUri
 import voice.core.playback.misc.VolumeGain
 import voice.core.playback.notification.MainActivityIntentProvider
@@ -35,8 +40,10 @@ import voice.core.playback.playstate.PlayStateDelegatingListener
 import voice.core.playback.playstate.PositionUpdater
 import voice.core.playback.session.BookPlaylistSynchronizer
 import voice.core.playback.session.LibrarySessionCallback
+import voice.core.playback.session.OnlineHlsMediaSourceFactory
 import voice.core.playback.session.PlaybackService
 import voice.core.playback.session.RoutingDataSource
+import voice.core.playback.session.hlsDataSourceFactory
 import voice.core.webdav.WebDavDataSourceFactory
 import voice.core.webdav.WebDavPlaybackCache
 import voice.core.strings.R as StringsR
@@ -50,6 +57,8 @@ interface PlaybackModule {
     webDavPlaybackCache: WebDavPlaybackCache,
     webDavDataSourceFactory: WebDavDataSourceFactory,
     onlineDataSourceFactory: OnlineDataSourceFactory,
+    onlinePlaybackCatalog: OnlinePlaybackCatalog,
+    onlineStreamAuth: OnlineStreamAuthProvider,
   ): MediaSource.Factory {
     val extractorsFactory = DefaultExtractorsFactory()
       .setConstantBitrateSeekingEnabled(true)
@@ -62,7 +71,15 @@ interface PlaybackModule {
         fallback = webDav,
       )
     }
-    return DefaultMediaSourceFactory(upstream, extractorsFactory)
+    // progressive stays the default: every direct-link source keeps the exact
+    // data source chain it had. Only a chapter whose resolved url is an HLS
+    // playlist is handed to HlsMediaSource, by OnlineHlsMediaSourceFactory.
+    val progressive = DefaultMediaSourceFactory(upstream, extractorsFactory)
+    return OnlineHlsMediaSourceFactory(
+      progressive = progressive,
+      hls = HlsMediaSource.Factory(hlsDataSourceFactory(onlineStreamAuth)),
+      catalog = onlinePlaybackCatalog,
+    )
   }
 
   @Provides
