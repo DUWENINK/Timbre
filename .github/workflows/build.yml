@@ -1,0 +1,54 @@
+name: Build（仅构建，不发布）
+
+# 手动触发：只编译签名 APK 并上传为构建产物（30 天有效），
+# 不创建 GitHub Release、不更新 update.json，用于发版前的个人体验。
+on:
+  workflow_dispatch:
+    inputs:
+      versionName:
+        description: '版本名 versionName，如 3.7.5'
+        required: true
+      versionCode:
+        description: '版本号 versionCode（整数）'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/build_setup
+
+      - name: 写入签名配置
+        env:
+          TIMBRE_KEYSTORE_BASE64: ${{ secrets.TIMBRE_KEYSTORE_BASE64 }}
+          TIMBRE_STORE_PASSWORD: ${{ secrets.TIMBRE_STORE_PASSWORD }}
+          TIMBRE_KEY_ALIAS: ${{ secrets.TIMBRE_KEY_ALIAS }}
+          TIMBRE_KEY_PASSWORD: ${{ secrets.TIMBRE_KEY_PASSWORD }}
+        run: |
+          mkdir -p signing
+          echo "$TIMBRE_KEYSTORE_BASE64" | base64 --decode > signing/signing.keystore
+          {
+            echo "STORE_PASSWORD=$TIMBRE_STORE_PASSWORD"
+            echo "KEY_ALIAS=$TIMBRE_KEY_ALIAS"
+            echo "KEY_PASSWORD=$TIMBRE_KEY_PASSWORD"
+          } > signing/signing.properties
+
+      - name: 构建 Release APK
+        run: |
+          ./gradlew assembleFreeRelease \
+            -Pvoice.versionName="${{ inputs.versionName }}" \
+            -Pvoice.versionCode="${{ inputs.versionCode }}"
+          test -f app/build/outputs/apk/free/release/app-free-release.apk
+
+      - name: 上传 APK 到构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: timbre-v${{ inputs.versionName }}
+          path: app/build/outputs/apk/free/release/app-free-release.apk
+          retention-days: 30
