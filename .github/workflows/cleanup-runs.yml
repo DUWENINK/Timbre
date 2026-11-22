@@ -47,6 +47,9 @@ jobs:
               const stale = data.workflow_runs.filter((run) => {
                 // Never delete the cleanup run itself.
                 if (run.id === context.runId) return false;
+                // Build 工作流的产物（签名 APK）要留在 run 里供下载，
+                // 清掉 run 会连 artifact 一起删掉
+                if (run.name === 'Build（仅构建，不发布）') return false;
                 // While the build is broken, keep the failures for inspection.
                 if (ciFailed && run.conclusion === 'failure') return false;
                 return true;
