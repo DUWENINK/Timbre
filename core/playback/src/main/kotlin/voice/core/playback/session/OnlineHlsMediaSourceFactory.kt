@@ -39,17 +39,13 @@ internal class OnlineHlsMediaSourceFactory(
     return intArrayOf(C.CONTENT_TYPE_OTHER, C.CONTENT_TYPE_HLS)
   }
 
-  override fun setDrmSessionManagerProvider(
-    drmSessionManagerProvider: DrmSessionManagerProvider,
-  ): MediaSource.Factory {
+  override fun setDrmSessionManagerProvider(drmSessionManagerProvider: DrmSessionManagerProvider): MediaSource.Factory {
     progressive.setDrmSessionManagerProvider(drmSessionManagerProvider)
     hls.setDrmSessionManagerProvider(drmSessionManagerProvider)
     return this
   }
 
-  override fun setLoadErrorHandlingPolicy(
-    loadErrorHandlingPolicy: LoadErrorHandlingPolicy,
-  ): MediaSource.Factory {
+  override fun setLoadErrorHandlingPolicy(loadErrorHandlingPolicy: LoadErrorHandlingPolicy): MediaSource.Factory {
     progressive.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
     hls.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
     return this

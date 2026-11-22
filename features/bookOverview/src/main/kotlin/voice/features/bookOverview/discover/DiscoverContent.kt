@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -28,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -58,8 +58,7 @@ private const val DISCOVER_PAGE_SIZE = 30
  * Duplicates are dropped before they reach the list (see [PagedList]) because
  * a repeated key crashes Compose.
  */
-private fun discoverKey(result: OnlineSearchResult): String =
-  result.source + result.bookId + result.title
+private fun discoverKey(result: OnlineSearchResult): String = result.source + result.bookId + result.title
 
 private fun OnlineRecommendGroup.cacheKey(): String = "$source/$groupId"
 

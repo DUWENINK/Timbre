@@ -62,7 +62,10 @@ public class OnlineStreamAuthProvider(
    * `https://api.example.com` must not match `https://api.example.com.evil.com`
    * and send the bearer token there.
    */
-  private fun sameOrigin(url: String, base: String): Boolean {
+  private fun sameOrigin(
+    url: String,
+    base: String,
+  ): Boolean {
     return try {
       val target = URI(url)
       val server = URI(base)
