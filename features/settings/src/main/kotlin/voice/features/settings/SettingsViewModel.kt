@@ -181,6 +181,10 @@ class SettingsViewModel(
     navigator.goTo(Destination.WebDavSettings(Origin.Default))
   }
 
+  override fun openFnOsSettings() {
+    navigator.goTo(Destination.FnOsSettings())
+  }
+
   override fun openExtensions() {
     navigator.goTo(Destination.ExtensionSources)
   }

@@ -20,7 +20,7 @@ import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
-private val REMOTE_SCHEMES = setOf("http", "https")
+private val REMOTE_SCHEMES = setOf("http", "https", "fnos")
 
 @Inject
 internal class CoverScanner(

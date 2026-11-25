@@ -1,5 +1,7 @@
 package voice.core.scanner
 
+import android.net.Uri
+import androidx.media3.datasource.DataSource
 import androidx.media3.inspector.MetadataRetriever
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesTo
@@ -9,12 +11,29 @@ import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.sync.Semaphore
 import voice.core.data.BookId
 import voice.core.data.backup.BookImportState
+import voice.core.online.FnOsDataSourceFactory
+import voice.core.online.RoutingDataSource
+import voice.core.webdav.WebDavDataSourceFactory
+
+@Qualifier
+internal annotation class ScannerSource(val folderCover: Boolean = false)
 
 @Qualifier
 internal annotation class MediaAnalysisSemaphore
 
 @ContributesTo(AppScope::class)
 public interface ScannerGraph {
+
+  @Provides
+  @ScannerSource
+  private fun metadataSource(fnOs: FnOsDataSourceFactory, webDav: WebDavDataSourceFactory): DataSource.Factory =
+    scannerSource(fnOs, webDav)
+
+  @Provides
+  @ScannerSource(folderCover = true)
+  private fun folderCoverSource(fnOs: FnOsDataSourceFactory, webDav: WebDavDataSourceFactory): DataSource.Factory =
+    scannerSource(fnOs, DataSource.Factory { webDav.createUnmarkedDataSource() })
+
 
   /**
    * The running import, for consumers that must not write a half-imported
@@ -78,3 +97,6 @@ internal const val ANALYSIS_PERMITS = 6
 // always left free for the cover pass, which shares this semaphore: covers used
 // to run beside a serial import and must not start waiting for chapter batches
 internal const val COVER_PERMITS_RESERVED = 1
+
+private fun scannerSource(fnOs: FnOsDataSourceFactory, fallback: DataSource.Factory): DataSource.Factory =
+  DataSource.Factory { RoutingDataSource(listOf({ uri: Uri -> uri.scheme == "fnos" } to fnOs), fallback) }

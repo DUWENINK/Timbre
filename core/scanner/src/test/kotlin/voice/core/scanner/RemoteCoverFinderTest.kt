@@ -25,7 +25,6 @@ import voice.core.data.ChapterId
 import voice.core.data.MarkData
 import voice.core.documentfile.CachedDocumentFile
 import voice.core.documentfile.CachedDocumentFileFactory
-import voice.core.webdav.WebDavDataSourceFactory
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -55,11 +54,7 @@ class RemoteCoverFinderTest {
 
   private val finder = RemoteCoverFinder(
     fileFactory = FakeFactory(files),
-    // WebDavDataSourceFactory is a final class with an internal constructor,
-    // so the test mocks it and stubs the unmarked data source instead.
-    dataSourceFactory = mockk {
-      every { createUnmarkedDataSource() } returns FakeDataSource(downloads)
-    },
+    dataSourceFactory = DataSource.Factory { FakeDataSource(downloads) },
     coverSaver = coverSaver,
   )
 

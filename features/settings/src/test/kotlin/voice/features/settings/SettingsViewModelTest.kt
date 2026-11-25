@@ -145,6 +145,13 @@ class SettingsViewModelTest {
   }
 
   @Test
+  fun `openFnOsSettings navigates to the NAS account screen`() {
+    viewModel.openFnOsSettings()
+
+    verify(exactly = 1) { navigator.goTo(Destination.FnOsSettings()) }
+  }
+
+  @Test
   fun `openSupportVoice navigates to support screen`() {
     viewModel.openSupportVoice()
 

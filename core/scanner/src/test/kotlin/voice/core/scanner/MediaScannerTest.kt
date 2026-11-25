@@ -113,6 +113,19 @@ class MediaScannerTest {
   }
 
   @Test
+  fun signedOutNasBooksAreHiddenEvenWhenLocalPermissionsAreMissing() = test {
+    val local = folder("local")
+    audioFile(local, "chapter.mp3")
+    scan(FolderType.Root, local)
+    val content = checkNotNull(bookContentRepo.get(BookId(local.toUri())))
+    val remote = content.copy(id = BookId("fnos://former-account/vol1/book"), positionInChapter = 300L)
+    bookContentRepo.put(remote)
+    scanRaw(emptyMap(), hasRegisteredFolders = true)
+    assertEquals(remote.copy(isActive = false), bookContentRepo.get(remote.id))
+    assertEquals(content, bookContentRepo.get(content.id))
+  }
+
+  @Test
   fun failedChapterRescanKeepsStoredChapters() = test {
     val audiobookFolder = folder("audiobooks")
     val book = File(audiobookFolder, "book1")

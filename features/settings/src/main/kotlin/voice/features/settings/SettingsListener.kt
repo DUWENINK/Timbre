@@ -17,6 +17,7 @@ interface SettingsListener {
   fun setAutoSleepTimerEnd(time: LocalTime)
   fun toggleAnalytics()
   fun openWebDav()
+  fun openFnOsSettings()
   fun openExtensions()
   fun setOnlineSourceEnabled(checked: Boolean)
   fun onOnlineSourceBaseUrlRowClick()
@@ -51,6 +52,7 @@ interface SettingsListener {
       override fun setAutoSleepTimerEnd(time: LocalTime) {}
       override fun toggleAnalytics() {}
       override fun openWebDav() {}
+      override fun openFnOsSettings() {}
       override fun openExtensions() {}
       override fun onAppVersionClick() {}
       override fun onUpdateDialogConfirm() {}

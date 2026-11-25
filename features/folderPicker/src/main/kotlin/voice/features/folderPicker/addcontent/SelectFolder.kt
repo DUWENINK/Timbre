@@ -1,6 +1,8 @@
 package voice.features.folderPicker.addcontent
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
@@ -30,6 +32,7 @@ internal fun SelectFolder(
   origin: Origin,
   modifier: Modifier = Modifier,
   onWebDav: (() -> Unit)? = null,
+  onFnOs: () -> Unit,
 ) {
   Scaffold(
     modifier = modifier,
@@ -50,7 +53,7 @@ internal fun SelectFolder(
           )
         }
 
-        Column(Modifier.weight(2F)) {
+        Column(Modifier.weight(2F).verticalScroll(rememberScrollState())) {
           Spacer(modifier = Modifier.size(16.dp))
 
           Text(
@@ -70,7 +73,7 @@ internal fun SelectFolder(
             style = MaterialTheme.typography.bodyLarge,
           )
           Spacer(modifier = Modifier.size(24.dp))
-          SelectFolderButtonRow(onEnter, onImportSource, onWebDav)
+          SelectFolderButtonRow(onEnter, onImportSource, onWebDav, onFnOs)
         }
       }
     },
@@ -91,6 +94,7 @@ private fun SelectFolderPreview() {
     onBack = {},
     onEnter = {},
     onImportSource = {},
+    onFnOs = {},
     origin = Origin.Default,
   )
 }

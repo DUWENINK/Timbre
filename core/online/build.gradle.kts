@@ -17,6 +17,7 @@ dependencies {
   implementation(libs.serialization.json)
   implementation(libs.datastore)
   implementation(libs.media3.datasource)
+  implementation(libs.media3.okhttp)
 
   testImplementation(libs.mockwebserver)
   testImplementation(libs.coroutines.test)

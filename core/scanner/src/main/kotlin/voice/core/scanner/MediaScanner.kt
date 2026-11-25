@@ -52,6 +52,12 @@ internal class MediaScanner(
       // uri permissions were lost on an update. Deactivating everything now
       // would empty the whole shelf even though every book is still there, so
       // the scan is skipped until the folders are accessible again.
+      // fnOS roots always retain their last known book IDs when offline. Their absence
+      // here means they were removed or belong to a signed-out account.
+      val active = contentRepo.all().filter { it.isActive }
+      if (active.any { it.id.toUri().scheme == "fnos" }) {
+        contentRepo.setAllInactiveExcept(active.filterNot { it.id.toUri().scheme == "fnos" }.map { it.id })
+      }
       Logger.w("Skipping the scan because no registered folder is accessible")
       return
     }
@@ -152,7 +158,7 @@ internal class MediaScanner(
     return asFlow()
       // the storage permission bug only exists on the local external storage;
       // walking a remote book would only cost a network request per folder
-      .filter { it.uri.scheme != "http" && it.uri.scheme != "https" }
+      .filter { it.uri.scheme == "content" }
       .flatMapConcat { it.walk() }
       .transform { child ->
         if (child.isAudioFile() && child.uri.authority == "com.android.externalstorage.documents") {

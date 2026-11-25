@@ -72,7 +72,7 @@ class DeleteBookViewModel(
       deleteCheckBoxChecked = false,
       // an online book has no local files to opt out of: its cached episodes
       // go with it, and the message below says so
-      canDeleteFiles = bookRef == null && bookId.toUri().scheme?.lowercase() !in setOf("http", "https"),
+      canDeleteFiles = bookRef == null && bookId.toUri().scheme?.lowercase() !in setOf("http", "https", "fnos"),
       fileToDelete = if (bookRef != null) {
         // the uri segments of an online book are its source id and book id:
         // printing them would look like a path the user could act on

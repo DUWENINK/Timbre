@@ -42,7 +42,8 @@ import voice.core.playback.session.BookPlaylistSynchronizer
 import voice.core.playback.session.LibrarySessionCallback
 import voice.core.playback.session.OnlineHlsMediaSourceFactory
 import voice.core.playback.session.PlaybackService
-import voice.core.playback.session.RoutingDataSource
+import voice.core.online.FnOsDataSourceFactory
+import voice.core.online.RoutingDataSource
 import voice.core.playback.session.hlsDataSourceFactory
 import voice.core.webdav.WebDavDataSourceFactory
 import voice.core.webdav.WebDavPlaybackCache
@@ -57,6 +58,7 @@ interface PlaybackModule {
     webDavPlaybackCache: WebDavPlaybackCache,
     webDavDataSourceFactory: WebDavDataSourceFactory,
     onlineDataSourceFactory: OnlineDataSourceFactory,
+    fnOsDataSourceFactory: FnOsDataSourceFactory,
     onlinePlaybackCatalog: OnlinePlaybackCatalog,
     onlineStreamAuth: OnlineStreamAuthProvider,
   ): MediaSource.Factory {
@@ -66,6 +68,7 @@ interface PlaybackModule {
     val upstream = DataSource.Factory {
       RoutingDataSource(
         routes = listOf(
+          { uri: Uri -> uri.scheme == "fnos" } to fnOsDataSourceFactory,
           { uri: Uri -> OnlineUri.isOnlineUri(uri.toString()) } to onlineDataSourceFactory,
         ),
         fallback = webDav,

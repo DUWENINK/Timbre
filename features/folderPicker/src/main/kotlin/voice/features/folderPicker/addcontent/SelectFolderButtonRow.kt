@@ -48,6 +48,7 @@ internal fun SelectFolderButtonRow(
   onEnter: () -> Unit,
   onImportSource: (SourceImport) -> Unit,
   onWebDav: (() -> Unit)?,
+  onFnOs: () -> Unit,
 ) {
   // FlowRow wraps instead of scrolling, so nothing gets cut off on narrow screens.
   FlowRow(
@@ -82,6 +83,11 @@ internal fun SelectFolderButtonRow(
         onClick = onWebDav,
       )
     }
+    SelectFolderButton(
+      icon = VoiceIcons.Folder,
+      text = stringResource(id = R.string.fnos_library_title),
+      onClick = onFnOs,
+    )
 
     if (showSourceDialog) {
       AlertDialog(

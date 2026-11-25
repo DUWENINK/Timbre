@@ -12,6 +12,7 @@ dependencies {
   implementation(projects.core.data.api)
   implementation(projects.core.initializer)
   implementation(projects.core.webdav)
+  implementation(projects.core.online)
 
   implementation(libs.slf4j.noop)
   implementation(libs.jebml)

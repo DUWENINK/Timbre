@@ -56,10 +56,8 @@ fun AddContent(origin: Origin) {
     origin = origin,
     onEnter = viewModel::enter,
     onImportSource = viewModel::importSource,
-    // the onboarding import page offers webdav as well: a fresh install has
-    // no settings entry to configure a server yet, so this is the only place
-    // to reach it from
     onWebDav = viewModel::openWebDav,
+    onFnOs = viewModel::openFnOs,
   )
 }
 

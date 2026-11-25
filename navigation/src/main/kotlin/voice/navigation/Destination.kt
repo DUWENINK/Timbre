@@ -66,6 +66,16 @@ sealed interface Destination {
   }
 
   @Serializable
+  data class FnOsSettings(val origin: Origin = Origin.Default) : Compose {
+    override val trackingName: String get() = "FnOsSettings"
+  }
+
+  @Serializable
+  data class FnOsBrowse(val origin: Origin, val path: String = "") : Compose {
+    override val trackingName: String get() = "FnOsBrowse"
+  }
+
+  @Serializable
   data object BookOverview : Compose {
     override val trackingName: String get() = "BookOverview"
   }

@@ -3,7 +3,7 @@ package voice.core.webdav
 import androidx.core.net.toUri
 import androidx.datastore.core.DataStore
 import dev.zacsweers.metro.AppScope
-import dev.zacsweers.metro.ContributesBinding
+import dev.zacsweers.metro.ContributesIntoSet
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +20,7 @@ import voice.core.data.toUri
 import voice.core.documentfile.CachedDocumentFile
 import voice.core.logging.api.Logger
 
-@ContributesBinding(AppScope::class)
+@ContributesIntoSet(AppScope::class)
 @Inject
 public class WebDavRemoteBookSources internal constructor(
   @WebDavBookSourcesStore private val sourcesStore: DataStore<List<WebDavBookSource>>,

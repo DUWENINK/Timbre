@@ -9,8 +9,8 @@
 
 ## Source Of Truth
 
-- Architecture and module boundaries: `docs/architecture.md`. Read it before changing dependencies, DI wiring, navigation, playback,
-  scanning, data, or module structure.
+- Architecture and module boundaries: see Architecture Rules below. Consult the affected module build files and existing DI or
+  navigation wiring before changing them.
 - Module inventory: `settings.gradle.kts`.
 - Dependency versions and plugin aliases: `gradle/libs.versions.toml`.
 - Build conventions: `plugins/src/main/kotlin`.

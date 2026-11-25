@@ -4,7 +4,10 @@ import android.app.Application
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.DataStoreFactory
 import dev.zacsweers.metro.AppScope
+import dev.zacsweers.metro.Binds
+import dev.zacsweers.metro.IntoSet
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.Qualifier
@@ -14,7 +17,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
+import voice.core.data.folders.RemoteBookSources
+import voice.core.common.DispatcherProvider
+import voice.core.common.KeystoreStringCipher
 import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -44,6 +52,26 @@ public annotation class OnlineSourceStreamingClient
 
 @ContributesTo(AppScope::class)
 public interface OnlineSourceGraph {
+
+  @Provides
+  @SingleIn(AppScope::class)
+  public fun fnOsLibrary(accounts: FnOsAccountRepository, factory: OnlineSourceStoreFactory): FnOsLibrary {
+    val store = factory.create(ListSerializer(FnOsRoot.serializer()), emptyList(), "fnOsLibraryRoots")
+    return FnOsLibrary(accounts, store)
+  }
+
+  @Binds
+  @IntoSet
+  public fun fnOsSources(library: FnOsLibrary): RemoteBookSources
+
+  @Provides
+  @SingleIn(AppScope::class)
+  public fun fnOsAccountRepository(application: Application, dispatchers: DispatcherProvider): FnOsAccountRepository {
+    val store = DataStoreFactory.create(serializer = OnlineSourceDataStoreSerializer("", Json, String.serializer())) {
+      File(application.noBackupFilesDir, "fnOsSession")
+    }
+    return FnOsAccountRepository(FnOsAuthClient(), store, KeystoreStringCipher("timbre_fnos_session"), dispatchers)
+  }
 
   @Provides
   @SingleIn(AppScope::class)

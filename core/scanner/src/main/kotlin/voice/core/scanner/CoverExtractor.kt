@@ -17,14 +17,15 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.guava.await
 import voice.core.logging.api.Logger
 import voice.core.scanner.matroska.MatroskaCoverExtractor
-import voice.core.webdav.WebDavDataSourceFactory
+import androidx.media3.datasource.DataSource
 import java.io.File
 
 @Inject
 internal class CoverExtractor(
   private val context: Context,
   private val matroskaCoverExtractor: MatroskaCoverExtractor,
-  dataSourceFactory: WebDavDataSourceFactory,
+  @ScannerSource
+  dataSourceFactory: DataSource.Factory,
 ) {
 
   private val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory, DefaultExtractorsFactory())
@@ -35,7 +36,7 @@ internal class CoverExtractor(
   ): Boolean {
     val fileType = FileTypes.inferFileTypeFromUri(input)
     val extension = (input.path ?: "").substringAfterLast(delimiter = ".", missingDelimiterValue = "").lowercase()
-    if (fileType == FileTypes.MATROSKA || extension == "mka" || extension == "mkv") {
+    if (input.scheme != "fnos" && (fileType == FileTypes.MATROSKA || extension == "mka" || extension == "mkv")) {
       return matroskaCoverExtractor.extract(input, outputFile)
     }
 

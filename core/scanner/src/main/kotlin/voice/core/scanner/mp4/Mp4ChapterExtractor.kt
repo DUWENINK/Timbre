@@ -6,13 +6,15 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import voice.core.logging.api.Logger
-import voice.core.webdav.WebDavDataSourceFactory
+import voice.core.scanner.ScannerSource
+import androidx.media3.datasource.DataSource
 
 @Inject
 internal class Mp4ChapterExtractor(
   private val boxParser: Mp4BoxParser,
   private val chapterTrackProcessor: ChapterTrackProcessor,
-  private val dataSourceFactory: WebDavDataSourceFactory,
+  @ScannerSource
+  private val dataSourceFactory: DataSource.Factory,
 ) {
 
   /**

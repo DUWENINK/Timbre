@@ -126,6 +126,15 @@ private fun Settings(
       }
       item {
         ListItem(
+          modifier = Modifier.clickable(onClick = listener::openFnOsSettings),
+          leadingContent = { Icon(imageVector = VoiceIcons.LockOpen, contentDescription = null) },
+          supportingContent = { Text(stringResource(StringsR.string.fnos_settings_summary)) },
+        ) {
+          Text(stringResource(StringsR.string.fnos_account))
+        }
+      }
+      item {
+        ListItem(
           modifier = Modifier.clickable { listener.openExtensions() },
           leadingContent = {
             Icon(

@@ -173,15 +173,15 @@ internal constructor(
               documentFilesWithUri.map { it.documentFile }
             }
           // remote books (e.g. webdav) join the scan so they stay active and
-          // are (re)scanned alongside the local ones. A broken remote source
-          // must not take the whole scan (and with it the local books) down.
+          // are (re)scanned alongside the local ones. Providers retain known
+          // books offline. If registrations themselves cannot be read, avoid deactivating books.
           val remoteBooks = try {
             remoteBookSources.books().first().map { it.documentFile }
           } catch (e: CancellationException) {
             throw e
           } catch (e: Exception) {
-            Logger.w(e, "Could not load the remote book sources")
-            emptyList()
+            Logger.w(e, "Skipping scan because the remote registrations could not be loaded")
+            return@launch
           }
           val folders: Map<FolderType, List<CachedDocumentFile>> = if (remoteBooks.isEmpty()) {
             localFolders

@@ -30,7 +30,7 @@ import voice.core.logging.api.Logger
 import voice.core.scanner.matroska.MatroskaMetaDataExtractor
 import voice.core.scanner.matroska.MatroskaParseException
 import voice.core.scanner.mp4.Mp4ChapterExtractor
-import voice.core.webdav.WebDavDataSourceFactory
+import androidx.media3.datasource.DataSource
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
@@ -40,7 +40,8 @@ internal class MediaAnalyzer(
   private val context: Context,
   private val mp4ChapterExtractor: Mp4ChapterExtractor,
   private val matroskaExtractorFactory: MatroskaMetaDataExtractor.Factory,
-  dataSourceFactory: WebDavDataSourceFactory,
+  @ScannerSource
+  dataSourceFactory: DataSource.Factory,
 ) {
 
   // we use a custom MediaSourceFactory because the default one for the
@@ -108,7 +109,7 @@ internal class MediaAnalyzer(
     if (mp4 != null) {
       builder.chapters += mp4.chapters
     }
-    if (fileType == FileTypes.MATROSKA || extension == "mka" || extension == "mkv") {
+    if (file.uri.scheme != "fnos" && (fileType == FileTypes.MATROSKA || extension == "mka" || extension == "mkv")) {
       parseMatroskaMetaData(file, builder)
     }
 

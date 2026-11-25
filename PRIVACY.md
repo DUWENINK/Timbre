@@ -1,15 +1,15 @@
 # 隐私政策 / Privacy Policy
 
-**最后更新：2026-10-22**
+**最后更新：2026-11-25**
 
 Timbre（以下简称"本应用"）是一款**自由开源**的本地有声书播放器（GPLv3），基于开源项目 [Voice](https://github.com/PaulWoitaschek/Voice) 二次开发。完整源代码公开于：
 https://github.com/kxdebug/Timbre
 
 ## 我们的承诺
 
-**本应用不收集、不存储、不传输任何个人信息。**
+**使用本地听书功能无需注册 Timbre 账号。**
 
-- ❌ 没有账号系统，无需注册
+- 飞牛登录为可选功能，由你指定的 NAS 验证本地账号。
 - ❌ 没有广告
 - ❌ 没有内置任何统计、分析或行为追踪 SDK（如 Firebase / 友盟 / 广点通等）
 - ❌ 不获取精确位置，不读取通讯录、短信、通话记录
@@ -25,11 +25,11 @@ https://github.com/kxdebug/Timbre
 | 唤醒锁（Wake Lock） | 播放时防止设备休眠导致播放中断 |
 | 蓝牙 | 支持蓝牙耳机 / Android Auto 的媒体控制 |
 
-以上权限仅用于实现对应功能，相关数据不会离开你的设备。
+以上权限仅用于实现对应功能。
 
 ## 联网行为
 
-本应用只有两项联网功能：**检查更新**和**读取公告**。
+检查更新和读取公告时的网络行为如下。
 
 - 应用启动后约 10 秒，会在后台尝试获取仓库中的 `update.json` 版本文件（优先走 jsDelivr CDN：`cdn.jsdelivr.net` / `fastly.jsdelivr.net`，失败则尝试 GitHub API：`api.github.com`），用于对比最新版本号（**每天最多一次**）。
 - 同一次启动中还会读取仓库中的 `announcement.txt` 公告文件，走相同的地址与顺序，用于显示维护者发布的公告。公告文本有变化时才会再次弹窗。
@@ -37,7 +37,7 @@ https://github.com/kxdebug/Timbre
 - 请求中**不包含任何账号、设备标识或个人信息**，也不会自动下载或安装任何文件。
 - 检测到新版本时仅弹窗提示，是否前往下载页面由你自己点击决定（前往下载同样是打开浏览器访问 GitHub Release 页面）。
 
-除此之外没有任何网络请求。
+使用飞牛登录时，Timbre 将账号、密码及按需输入的动态验证码直接发送到你填写的 NAS。密码和验证码仅用于本次登录。NAS 返回的会话凭据、地址和用户名使用 Android Keystore 密钥加密，保存在本机的免备份目录。浏览目录、扫描书籍、读取封面和播放时，应用使用已保存的会话向同一台 NAS 请求目录信息和文件内容。所选目录、书籍索引和播放进度保存在本机。退出会清除本机保存的飞牛会话。
 
 ## 数据存储与备份
 
@@ -66,7 +66,8 @@ https://github.com/kxdebug/Timbre/issues
 Timbre is a free and open-source (GPLv3) local audiobook player, forked from the
 [Voice](https://github.com/PaulWoitaschek/Voice) project.
 
-- **No data collection.** The app contains no accounts, no ads, and no analytics or tracking SDKs.
+- Local playback requires no Timbre account. The app contains no ads or tracking SDKs.
+- Optional fnOS sign-in sends credentials and any requested one-time code directly to your NAS. Timbre saves the resulting session, server address and username encrypted on this device with an Android Keystore key, outside Android backups. Browsing, scanning and streaming contact the same NAS to read folders and files. Selected folders, the book index and playback positions are saved on the device. Signing out clears the saved session.
 - **Everything stays on your device:** your library, playback positions, bookmarks, and settings.
 - **Network calls:** an update check that runs at most once per day in the background, and a read of the announcement file on the same start. Both download a small text file from the jsDelivr CDN (fallback: the GitHub API) and send nothing - no account, no device identifier, no personal data. The announcement dialog returns only when its text changes. Nothing is ever downloaded or installed automatically; visiting the download page is your choice.
 - Permissions (media files, notifications, foreground service, wake lock, Bluetooth) are used solely to provide audiobook playback.

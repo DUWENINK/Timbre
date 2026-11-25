@@ -71,6 +71,10 @@ class AddContentViewModel(
     navigator.goTo(Destination.WebDavServers(origin))
   }
 
+  internal fun openFnOs() {
+    navigator.goTo(Destination.FnOsSettings(origin))
+  }
+
   internal fun back() {
     navigator.goBack()
   }

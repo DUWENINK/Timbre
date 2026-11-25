@@ -13,7 +13,7 @@ import voice.core.data.toUri
 import voice.core.documentfile.CachedDocumentFile
 import voice.core.documentfile.CachedDocumentFileFactory
 import voice.core.logging.api.Logger
-import voice.core.webdav.WebDavDataSourceFactory
+import androidx.media3.datasource.DataSource
 import java.io.File
 import kotlin.io.DEFAULT_BUFFER_SIZE
 
@@ -52,7 +52,8 @@ internal sealed interface RemoteCoverLookup {
 @Inject
 internal class RemoteCoverFinder(
   private val fileFactory: CachedDocumentFileFactory,
-  private val dataSourceFactory: WebDavDataSourceFactory,
+  @ScannerSource(folderCover = true)
+  private val dataSourceFactory: DataSource.Factory,
   private val coverSaver: CoverSaver,
 ) {
 
@@ -137,7 +138,7 @@ internal class RemoteCoverFinder(
   ): Boolean {
     // the unmarked variant keeps the cover download out of the playback cache
     // statistics; DataSource is not Closeable, so close it manually
-    val dataSource = dataSourceFactory.createUnmarkedDataSource()
+    val dataSource = dataSourceFactory.createDataSource()
     try {
       dataSource.open(DataSpec(uri))
       outputFile.outputStream().use { output ->
