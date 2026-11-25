@@ -37,6 +37,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/build_setup
+      # Robolectric downloads its android-all jar at test runtime into ~/.m2,
+      # which the Gradle dependency cache does not cover. Without this every
+      # cold run fetches it from Maven Central again, and a 429 rate limit
+      # fails the job before a single test starts (the failure surfaces as an
+      # AssertionError inside the first Robolectric test class).
+      - name: Cache Robolectric android-all
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: ${{ runner.os }}-robolectric-${{ hashFiles('gradle/libs.versions.toml') }}
       - name: Check locale config
         run: ./scripts/check_locale_config.main.kts
       # formatting runs first: a ktlint failure used to abort Gradle *while*
