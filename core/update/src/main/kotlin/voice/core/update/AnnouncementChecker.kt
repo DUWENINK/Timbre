@@ -64,9 +64,9 @@ class AnnouncementChecker {
 
   private companion object {
     val endpoints = listOf(
-      "https://raw.githubusercontent.com/kxdebug/Timbre/main/announcement.txt",
-      "https://cdn.jsdelivr.net/gh/kxdebug/Timbre@main/announcement.txt",
-      "https://fastly.jsdelivr.net/gh/kxdebug/Timbre@main/announcement.txt",
+      "https://raw.githubusercontent.com/DUWENINK/Timbre/main/announcement.txt",
+      "https://cdn.jsdelivr.net/gh/DUWENINK/Timbre@main/announcement.txt",
+      "https://fastly.jsdelivr.net/gh/DUWENINK/Timbre@main/announcement.txt",
     )
 
     const val HTTP_OK = 200

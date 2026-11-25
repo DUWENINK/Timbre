@@ -305,9 +305,10 @@ private fun Settings(
           leadingContent = {
             Icon(
               imageVector = VoiceIcons.Github,
-              contentDescription = stringResource(StringsR.string.settings_github_title),
+              contentDescription = null,
             )
           },
+          supportingContent = { Text(stringResource(StringsR.string.settings_github_maintainer)) },
         ) {
           Text(stringResource(StringsR.string.settings_github_title))
         }

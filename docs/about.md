@@ -1,6 +1,6 @@
 # 关于 Timbre
 
-Timbre 是开源项目 [Voice](https://github.com/PaulWoitaschek/Voice) 的二次开发版本。
+本分支由 DUWENINK 维护，派生自 [kxdebug/Timbre](https://github.com/kxdebug/Timbre)。Timbre 的上游是开源听书应用 [Voice](https://github.com/PaulWoitaschek/Voice)。
 
 感谢 [Paul Woitaschek](https://github.com/PaulWoitaschek) 与 Voice 项目的所有贡献者——Timbre 的播放内核、书库模型与整体架构都建立在 Voice 之上。没有这个优秀的开源项目，就没有 Timbre。
 
@@ -19,7 +19,6 @@ Timbre 与 Voice 一样采用 [GPLv3](license.md) 许可证开源，欢迎在遵
 
 ## 链接
 
-- 仓库：<https://github.com/kxdebug/Timbre>
-- 问题反馈：<https://github.com/kxdebug/Timbre/issues>
-- 下载：<https://github.com/kxdebug/Timbre/releases/latest>
+- 仓库：<https://github.com/DUWENINK/Timbre>
+- 发布记录：<https://github.com/DUWENINK/Timbre/releases>
 - 上游项目：<https://github.com/PaulWoitaschek/Voice>

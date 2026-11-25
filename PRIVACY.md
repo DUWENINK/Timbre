@@ -2,8 +2,8 @@
 
 **最后更新：2026-11-25**
 
-Timbre（以下简称"本应用"）是一款**自由开源**的本地有声书播放器（GPLv3），基于开源项目 [Voice](https://github.com/PaulWoitaschek/Voice) 二次开发。完整源代码公开于：
-https://github.com/kxdebug/Timbre
+Timbre（以下简称"本应用"）是一款**自由开源**的本地有声书播放器（GPLv3），基于开源项目 [Voice](https://github.com/PaulWoitaschek/Voice) 二次开发。本版本由 DUWENINK 维护，完整源代码公开于：
+https://github.com/DUWENINK/Timbre
 
 ## 我们的承诺
 
@@ -31,7 +31,7 @@ https://github.com/kxdebug/Timbre
 
 检查更新和读取公告时的网络行为如下。
 
-- 应用启动后约 10 秒，会在后台尝试获取仓库中的 `update.json` 版本文件（优先走 jsDelivr CDN：`cdn.jsdelivr.net` / `fastly.jsdelivr.net`，失败则尝试 GitHub API：`api.github.com`），用于对比最新版本号（**每天最多一次**）。
+- 应用启动后约 10 秒，会在后台尝试获取仓库中的 `update.json` 版本文件（先访问 GitHub 原始文件服务 `raw.githubusercontent.com`，失败时再尝试 jsDelivr CDN），用于对比最新版本号（**每天最多一次**）。
 - 同一次启动中还会读取仓库中的 `announcement.txt` 公告文件，走相同的地址与顺序，用于显示维护者发布的公告。公告文本有变化时才会再次弹窗。
 - 请求超时即静默放弃，不影响任何功能。
 - 请求中**不包含任何账号、设备标识或个人信息**，也不会自动下载或安装任何文件。
@@ -52,26 +52,26 @@ https://github.com/kxdebug/Timbre
 ## 隐私政策变更
 
 如本政策更新，会在源代码仓库中公布。请通过以下地址查看历史版本：
-https://github.com/kxdebug/Timbre/blob/main/PRIVACY.md
+https://github.com/DUWENINK/Timbre/blob/main/PRIVACY.md
 
 ## 联系我们
 
-如对本政策或应用有任何疑问，请在 GitHub 提交 Issue：
-https://github.com/kxdebug/Timbre/issues
+本政策与应用的维护者为 DUWENINK，可通过项目主页查看联系和贡献入口。
+https://github.com/DUWENINK/Timbre
 
 ---
 
 ## English Summary
 
 Timbre is a free and open-source (GPLv3) local audiobook player, forked from the
-[Voice](https://github.com/PaulWoitaschek/Voice) project.
+[Voice](https://github.com/PaulWoitaschek/Voice) project. DUWENINK maintains this version.
 
 - Local playback requires no Timbre account. The app contains no ads or tracking SDKs.
 - Optional fnOS sign-in sends credentials and any requested one-time code directly to your NAS. Timbre saves the resulting session, server address and username encrypted on this device with an Android Keystore key, outside Android backups. Browsing, scanning and streaming contact the same NAS to read folders and files. Selected folders, the book index and playback positions are saved on the device. Signing out clears the saved session.
 - **Everything stays on your device:** your library, playback positions, bookmarks, and settings.
-- **Network calls:** an update check that runs at most once per day in the background, and a read of the announcement file on the same start. Both download a small text file from the jsDelivr CDN (fallback: the GitHub API) and send nothing - no account, no device identifier, no personal data. The announcement dialog returns only when its text changes. Nothing is ever downloaded or installed automatically; visiting the download page is your choice.
+- **Network calls:** an update check that runs at most once per day in the background, and a read of the announcement file on the same start. Both download a small text file from GitHub’s raw file service, with jsDelivr as a fallback and send nothing - no account, no device identifier, no personal data. The announcement dialog returns only when its text changes. Nothing is ever downloaded or installed automatically; visiting the download page is your choice.
 - Permissions (media files, notifications, foreground service, wake lock, Bluetooth) are used solely to provide audiobook playback.
 - Uninstalling the app removes all of its data.
 
-Source code: https://github.com/kxdebug/Timbre
-Questions: open an issue at https://github.com/kxdebug/Timbre/issues
+Source code: https://github.com/DUWENINK/Timbre
+Maintainer: [DUWENINK](https://github.com/DUWENINK)

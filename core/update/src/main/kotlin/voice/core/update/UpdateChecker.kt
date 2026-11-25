@@ -32,9 +32,9 @@ class UpdateChecker {
   // "downgrade". Every endpoint is tried in order and a failure or a timeout
   // of one is silently ignored.
   private val endpoints = listOf(
-    "https://raw.githubusercontent.com/kxdebug/Timbre/main/update.json",
-    "https://cdn.jsdelivr.net/gh/kxdebug/Timbre@main/update.json",
-    "https://fastly.jsdelivr.net/gh/kxdebug/Timbre@main/update.json",
+    "https://raw.githubusercontent.com/DUWENINK/Timbre/main/update.json",
+    "https://cdn.jsdelivr.net/gh/DUWENINK/Timbre@main/update.json",
+    "https://fastly.jsdelivr.net/gh/DUWENINK/Timbre@main/update.json",
   )
 
   /**

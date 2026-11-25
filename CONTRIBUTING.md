@@ -1,10 +1,10 @@
 # 参与贡献 | Contributing
 
-欢迎 Issue 与 PR！
+欢迎向 [DUWENINK/Timbre](https://github.com/DUWENINK/Timbre) 提交贡献。
 
 ## 反馈问题 | Reporting issues
 
-提交 [GitHub Issues](https://github.com/kxdebug/Timbre/issues) 时请附上：
+问题修复可通过 [Pull requests](https://github.com/DUWENINK/Timbre/pulls) 提交。描述问题时请附上：
 
 - 设备 / 系统版本与 App 版本号（关于页可见）
 - 复现步骤；本地书问题请说明文件格式，WebDAV 问题请说明服务器类型（飞牛 fnOS / 群晖 / Alist 等）

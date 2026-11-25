@@ -118,7 +118,7 @@ class UpdateNotifier(
 
   companion object {
     /** the page the update button opens in the browser */
-    const val RELEASE_PAGE_URL = "https://github.com/kxdebug/Timbre/releases/latest"
+    const val RELEASE_PAGE_URL = "https://github.com/DUWENINK/Timbre/releases"
   }
 }
 

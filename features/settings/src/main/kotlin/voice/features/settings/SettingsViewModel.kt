@@ -170,7 +170,7 @@ class SettingsViewModel(
   }
 
   override fun openProjectRepository() {
-    navigator.goTo(Destination.Website("https://github.com/kxdebug/Timbre"))
+    navigator.goTo(Destination.Website("https://github.com/DUWENINK/Timbre"))
   }
 
   override fun openSupportVoice() {

@@ -136,6 +136,13 @@ class SettingsViewModelTest {
   }
 
   @Test
+  fun `openProjectRepository opens the maintained fork`() {
+    viewModel.openProjectRepository()
+
+    verify(exactly = 1) { navigator.goTo(Destination.Website("https://github.com/DUWENINK/Timbre")) }
+  }
+
+  @Test
   fun `openDeveloperMenu navigates to developer settings`() {
     viewModel.openDeveloperMenu()
 

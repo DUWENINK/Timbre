@@ -17,11 +17,6 @@ on:
           - jdr
           - update-json
           - announcement
-      legacy_owner:
-        description: '同时刷新旧 owner（cq10086123）路径；README 与 App 预填地址还指向它时保持勾选'
-        required: false
-        default: true
-        type: boolean
 
 concurrency:
   group: purge-jsdelivr
@@ -38,7 +33,6 @@ jobs:
       - name: 刷新 CDN 缓存并与仓库源文件比对
         env:
           TARGET: ${{ inputs.target }}
-          LEGACY: ${{ inputs.legacy_owner }}
         run: |
           set -euo pipefail
 
@@ -50,15 +44,9 @@ jobs:
             *) echo "::error::未知的 target：$TARGET"; exit 1 ;;
           esac
 
-          owners=("kxdebug")
-          if [ "$LEGACY" = "true" ]; then
-            owners+=("cq10086123")
-          fi
-
           rows=()
           for file in "${files[@]}"; do
-            # 以当前仓库（kxdebug）的 main 为唯一基准
-            raw_url="https://raw.githubusercontent.com/kxdebug/Timbre/main/$file"
+            raw_url="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/$file"
             if ! curl -fsSL --max-time 60 "$raw_url" -o /dev/null; then
               echo "::notice::仓库里没有 $file，跳过"
               rows+=("| \`$file\` | — | 文件不存在，已跳过 |")
@@ -66,50 +54,45 @@ jobs:
             fi
             expected=$(curl -fsSL --max-time 60 "$raw_url" | sha256sum | awk '{print $1}')
 
-            for owner in "${owners[@]}"; do
-              purge_url="https://purge.jsdelivr.net/gh/$owner/Timbre@main/$file"
-              cdn_url="https://cdn.jsdelivr.net/gh/$owner/Timbre@main/$file"
+            purge_url="https://purge.jsdelivr.net/gh/$GITHUB_REPOSITORY@main/$file"
+            cdn_url="https://cdn.jsdelivr.net/gh/$GITHUB_REPOSITORY@main/$file"
 
-              echo "刷新 $purge_url"
-              body=$(curl -fsS --retry 3 --retry-delay 2 --max-time 30 "$purge_url")
-              printf '%s' "$body" | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d.get("paths",{}); ok=d.get("status")=="finished" and bool(p) and all(v.get("providers",{}).get("CF") is True and v.get("providers",{}).get("FY") is True for v in p.values()); sys.exit(0 if ok else 1)' || {
-                echo "::error::$purge_url 未返回成功状态：$body"
-                exit 1
-              }
-              if printf '%s' "$body" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if any(v.get("throttled") for v in d.get("paths",{}).values()) else 1)'; then
-                echo "::warning::$purge_url 触发限流，稍后重跑本工作流即可"
+            echo "刷新 $purge_url"
+            body=$(curl -fsS --retry 3 --retry-delay 2 --max-time 30 "$purge_url")
+            printf '%s' "$body" | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d.get("paths",{}); ok=d.get("status")=="finished" and bool(p) and all(v.get("providers",{}).get("CF") is True and v.get("providers",{}).get("FY") is True for v in p.values()); sys.exit(0 if ok else 1)' || {
+              echo "::error::$purge_url 未返回成功状态：$body"
+              exit 1
+            }
+            if printf '%s' "$body" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if any(v.get("throttled") for v in d.get("paths",{}).values()) else 1)'; then
+              echo "::warning::$purge_url 触发限流，稍后重跑本工作流即可"
+            fi
+
+            actual=""
+            ok=false
+            for attempt in 1 2 3 4 5 6; do
+              actual=$(curl -fsSL --max-time 60 "$cdn_url" | sha256sum | awk '{print $1}')
+              if [ "$actual" = "$expected" ]; then
+                ok=true
+                break
               fi
-
-              actual=""
-              ok=false
-              for attempt in 1 2 3 4 5 6; do
-                actual=$(curl -fsSL --max-time 60 "$cdn_url" | sha256sum | awk '{print $1}')
-                if [ "$actual" = "$expected" ]; then
-                  ok=true
-                  break
-                fi
-                sleep 5
-              done
-
-              if [ "$ok" = "true" ]; then
-                echo "OK  $owner/$file  哈希 ${actual:0:12}… 与仓库一致"
-                rows+=("| \`$file\` | \`$owner\` | OK ${actual:0:12}… |")
-              elif [ "$owner" = "kxdebug" ]; then
-                echo "::error::$cdn_url 仍是旧内容（CDN=${actual:0:12}… 仓库=${expected:0:12}…）"
-                exit 1
-              else
-                echo "::warning::$cdn_url 与仓库不一致，旧 owner 路径建议尽快换成 kxdebug"
-                rows+=("| \`$file\` | \`$owner\` | 未同步（旧路径） |")
-              fi
+              sleep 5
             done
+
+            if [ "$ok" = "true" ]; then
+              echo "OK  $GITHUB_REPOSITORY/$file  哈希 ${actual:0:12}… 与仓库一致"
+              rows+=("| \`$file\` | \`$GITHUB_REPOSITORY\` | OK ${actual:0:12}… |")
+            else
+              echo "::error::$cdn_url 仍是旧内容（CDN=${actual:0:12}… 仓库=${expected:0:12}…）"
+              exit 1
+            fi
           done
 
           {
             echo "## jsDelivr 缓存刷新结果"
             echo
-            echo "| 文件 | CDN 路径 owner | 结果 |"
+            echo "| 文件 | CDN 仓库 | 结果 |"
             echo "| --- | --- | --- |"
             printf '%s\n' "${rows[@]}"
             echo
-            echo "目标：\`$TARGET\`；旧 owner：\`$LEGACY\`；基准：\`kxdebug/Timbre@main\`"
+            echo "目标：\`$TARGET\`；基准：\`$GITHUB_REPOSITORY@main\`"
           } >> "$GITHUB_STEP_SUMMARY"

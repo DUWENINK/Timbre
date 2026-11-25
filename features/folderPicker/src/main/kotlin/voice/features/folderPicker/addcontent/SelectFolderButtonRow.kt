@@ -33,7 +33,7 @@ import voice.core.ui.icons.VoiceIcons
  * 新用户第一次导入就失败，还以为接口源坏了。
  */
 private const val DEFAULT_SOURCE_URL =
-  "https://cdn.jsdelivr.net/gh/kxdebug/Timbre@main/samples/Timbre.jdr"
+  "https://cdn.jsdelivr.net/gh/DUWENINK/Timbre@main/samples/Timbre.jdr"
 
 /** 导入书源的两种来源：本地 .jdr 文件或在线链接。 */
 internal sealed interface SourceImport {

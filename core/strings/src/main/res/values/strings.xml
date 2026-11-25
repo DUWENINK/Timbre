@@ -244,6 +244,7 @@
     <string name="settings.auto_sleep_timer.title">Automatic Sleep Timer</string>
     <!-- Settings row for opening the project's source code on GitHub. -->
     <string name="settings.github.title">Open source project</string>
+    <string name="settings.github.maintainer">Maintained by DUWENINK</string>
     <!-- Summary text for the audiobook folders settings row. -->
     <!-- Settings row for toggling grid layout in the library. -->
     <string name="settings.library.use_grid.title">Use grid layout</string>

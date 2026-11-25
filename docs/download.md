@@ -2,11 +2,11 @@
 
 ## 下载
 
-1. 打开 [GitHub Releases 页面](https://github.com/kxdebug/Timbre/releases/latest)。
-2. 在最新版本的 **Assets** 里下载 `timbre-v<版本号>.apk`。
+1. 打开 [GitHub Releases 页面](https://github.com/DUWENINK/Timbre/releases)。
+2. 若版本的 **Assets** 中有 APK，请下载该文件。发布页为空时，可按[源码构建说明](https://github.com/DUWENINK/Timbre#从源码构建)生成调试 APK。
 3. 在手机上打开 APK 安装。如果系统提示「允许安装未知来源应用」，按提示授权一次即可。
 
-[:material-download: &nbsp;前往最新版本](https://github.com/kxdebug/Timbre/releases/latest){ .md-button .md-button--primary }
+[:material-download: &nbsp;查看发布记录](https://github.com/DUWENINK/Timbre/releases){ .md-button .md-button--primary }
 
 ## 系统要求
 
@@ -17,9 +17,7 @@
 
 ## 覆盖安装与数据
 
-新版本 APK 使用与旧版本相同的签名，可以**直接覆盖安装**，书库、播放进度、书签和设置全部保留，不需要卸载重装。
-
-只有把书的**音频文件**从手机上删掉，数据才会随书一起消失。
+只有应用包名相同、签名兼容且版本允许升级的 APK 才能覆盖安装。使用自己构建的调试包时，请先备份已有书库数据。
 
 ## 应用内更新
 
