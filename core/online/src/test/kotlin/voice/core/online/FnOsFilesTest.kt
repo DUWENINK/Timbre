@@ -14,6 +14,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.security.KeyPairGenerator
 import java.util.Base64
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.crypto.Mac
@@ -61,14 +62,15 @@ class FnOsFilesTest {
   }
 
   @Test
-  fun listsVisibleShareOwnersAndUsesTheReportedStoragePathWithTheReadersSession() = runBlocking {
+  fun usesEmbeddedOwnerNamesWithoutALookupAndListsWithTheReadersSession() = runBlocking {
     serve(listOf(
       """{"users":[{"uid":1012,"name":"共享者"}]}""",
-      """{"users":[1013,1012],"uver":111677748019200,"result":"succ"}""",
+      """{"users":[{"uid":1013,"name":"另一个账号"},1012],"uver":111677748019200,"result":"succ"}""",
     ))
     val owners = client.listShareOwners(session)
-    assertEquals(listOf(FnOsShareOwner(1012, "共享者"), FnOsShareOwner(1013, "UID 1013")), owners)
-    assertEquals("file.share.listOthers", requests.last().getValue("req").jsonPrimitive.content)
+    assertEquals(listOf(FnOsShareOwner(1012, "共享者"), FnOsShareOwner(1013, "另一个账号")), owners)
+    assertEquals(listOf("util.getSI", "user.authToken", "file.share.listOthers"), requests.map { it.getValue("req").jsonPrimitive.content })
+    assertEquals(1, server.requestCount)
     assertFalse(requests.last().containsKey("uid"))
 
     serve(listOf(
@@ -91,10 +93,24 @@ class FnOsFilesTest {
       """{"uid":[1012],"users":[{"uid":4000,"name":"unrelated"}]}""",
       """{"uid":["1013",1012],"uver":111677748019200,"result":"succ"}""",
     ))
+    serve(listOf(
+      """{"users":[{"uid":4000,"user":"无关用户"},{"uid":1012,"user":"可可"}]}""",
+      """{"groups":[{"uid":1013,"user":"共享组"}],"result":"succ"}""",
+    ))
     val owners = client.listShareOwners(session)
-    assertEquals(listOf(FnOsShareOwner(1012, "UID 1012"), FnOsShareOwner(1013, "UID 1013")), owners)
-    assertEquals("file.share.listOthers", requests.last().getValue("req").jsonPrimitive.content)
-    assertFalse("uid" in requests.last())
+    assertEquals(listOf(FnOsShareOwner(1012, "可可"), FnOsShareOwner(1013, "UID 1013")), owners)
+    val listRequest = requests.single { it.getValue("req").jsonPrimitive.content == "file.share.listOthers" }
+    assertFalse("uid" in listRequest)
+    assertEquals(2, server.requestCount)
+    assertEquals("type=file", server.takeRequest().url.encodedQuery)
+    assertEquals("type=main", server.takeRequest().url.encodedQuery)
+    val auth = requests.single { it.getValue("req").jsonPrimitive.content == "user.authToken" && "main" in it }
+    assertEquals("true", auth.getValue("main").toString())
+    assertEquals(session.token, auth.getValue("token").jsonPrimitive.content)
+    val lookup = requests.single { it.getValue("req").jsonPrimitive.content == "user.listUG" }
+    assertEquals("true", lookup.getValue("users").toString())
+    assertEquals("false", lookup.getValue("groups").toString())
+    assertFalse("uver" in lookup)
 
     serve(listOf(
       """{"share":[{"path":"/vol2/1013/Private/PhysicalName","link":"/vol01/1013/听书 #1/"}]}""",
@@ -117,11 +133,31 @@ class FnOsFilesTest {
   }
 
   @Test
+  fun keepsVisibleOwnersWhenTheServerDeniesTheNameLookup() = runBlocking {
+    serve(listOf("""{"users":[1012,{"uid":1013,"name":"共享者"}],"result":"succ"}"""))
+    serve(listOf("""{"result":"fail","errno":4100,"errmsg":"access denied"}"""))
+
+    assertEquals(listOf(FnOsShareOwner(1012, "UID 1012"), FnOsShareOwner(1013, "共享者")), client.listShareOwners(session))
+    assertEquals("user.listUG", requests.last().getValue("req").jsonPrimitive.content)
+  }
+
+  @Test
+  fun keepsVisibleOwnersWhenTheMainSocketIsUnavailable() = runBlocking {
+    serve(listOf("""{"uid":[1012],"result":"succ"}"""))
+    server.enqueue(MockResponse.Builder().code(503).build())
+
+    assertEquals(listOf(FnOsShareOwner(1012, "UID 1012")), client.listShareOwners(session))
+    assertEquals(2, server.requestCount)
+  }
+
+  @Test
   fun emptyVisibleOwnersAndRevokedSharesKeepTheServersMeaning() = runBlocking {
     serve(listOf("""{"uver":111677748019200,"result":"succ"}"""))
     assertEquals(emptyList(), client.listShareOwners(session))
     serve(listOf("""{"uid":[],"result":"succ"}"""))
     assertEquals(emptyList(), client.listShareOwners(session))
+    assertEquals(2, server.requestCount)
+    assertFalse(requests.any { it.getValue("req").jsonPrimitive.content == "user.listUG" })
     serve(listOf("""{"uid":{"invalid":true},"errno":4100}"""))
     assertEquals(FnOsAuthError.REJECTED, assertFailsWith<FnOsAuthException> { client.listShareOwners(session) }.reason)
     serve(listOf("""{"uid":[1012]}""", """{"uid":false,"errmsg":"access denied"}"""))
@@ -182,7 +218,7 @@ class FnOsFilesTest {
         val request = Json.parseToJsonElement(json).jsonObject
         requests += request
         val method = request.getValue("req").jsonPrimitive.content
-        if (method != "util.getSI") {
+        if (method != "util.getSI" && method != "util.crypto.getRSAPub") {
           val mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }
           if (text.take(44) != Base64.getEncoder().encodeToString(mac.doFinal(json.toByteArray()))) {
             webSocket.close(1008, "Invalid authentication")
@@ -191,6 +227,7 @@ class FnOsFilesTest {
         }
         val replies = when (method) {
           "util.getSI" -> listOf("""{"si":"1"}""")
+          "util.crypto.getRSAPub" -> listOf("""{"si":"2","pub":"$publicKey"}""")
           "user.authToken" -> listOf("""{"result":"succ"}""")
           "stor.getUserStorage" -> listOf("""{"stor":[{"id":3,"comment":""}],"uid":1010,"result":"succ"}""")
           else -> packets
@@ -203,5 +240,12 @@ class FnOsFilesTest {
         }
       }
     }).build())
+  }
+
+  private companion object {
+    val publicKey: String by lazy {
+      val generator = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }
+      Base64.getEncoder().encodeToString(generator.generateKeyPair().public.encoded)
+    }
   }
 }

@@ -260,21 +260,40 @@ public class FnOsAuthClient {
   }
 
   internal suspend fun listFiles(session: FnOsSession, path: String): List<FnOsFile> =
-    withFileConnection(session) { listDirectory(session, path) }
+    withAuthenticatedConnection(session, file = true) { listDirectory(session, path) }
 
-  internal suspend fun listShareOwners(session: FnOsSession): List<FnOsShareOwner> =
-    withFileConnection(session) { shareOwners(session) }
+  internal suspend fun listShareOwners(session: FnOsSession): List<FnOsShareOwner> {
+    val owners = withAuthenticatedConnection(session, file = true) { shareOwners(session) }
+    val missingNames = owners.filterValues { it == null }.keys
+    val names = lookupShareOwnerNames(session, missingNames)
+    return owners.map { (uid, name) -> FnOsShareOwner(uid, name ?: names[uid] ?: "UID $uid") }
+  }
+
+  private suspend fun lookupShareOwnerNames(session: FnOsSession, ownerIds: Set<Long>): Map<Long, String> {
+    if (ownerIds.isEmpty()) return emptyMap()
+    return try {
+      withTimeoutOrNull(OWNER_NAME_TIMEOUT_MS) {
+        withAuthenticatedConnection(session, file = false) { shareOwnerNames(session, ownerIds) }
+      }.orEmpty()
+    } catch (_: FnOsAuthException) {
+      emptyMap()
+    }
+  }
 
   internal suspend fun listSharedFolders(session: FnOsSession, owner: FnOsShareOwner): List<FnOsFile> =
-    withFileConnection(session) { sharedFolders(session, owner) }
+    withAuthenticatedConnection(session, file = true) { sharedFolders(session, owner) }
 
   internal suspend fun prepareRead(session: FnOsSession, path: String): FnOsReadRequest =
-    withFileConnection(session) { downloadRequest(session, path) }
+    withAuthenticatedConnection(session, file = true) { downloadRequest(session, path) }
 
-  private suspend fun <T> withFileConnection(session: FnOsSession, action: suspend FnOsConnection.() -> T): T =
+  private suspend fun <T> withAuthenticatedConnection(
+    session: FnOsSession,
+    file: Boolean,
+    action: suspend FnOsConnection.() -> T,
+  ): T =
     withContext(Dispatchers.IO) {
-      connect(fnOsAddress(session.address), file = true) {
-        if (!authorize(session, main = false)) fail(FnOsAuthError.SESSION_EXPIRED)
+      connect(fnOsAddress(session.address), file) {
+        if (!authorize(session, main = !file)) fail(FnOsAuthError.SESSION_EXPIRED)
         action()
       }
     }
@@ -342,6 +361,7 @@ public class FnOsAuthClient {
 }
 
 private const val MAX_FRAME_SIZE = 65_536
+private const val OWNER_NAME_TIMEOUT_MS = 5_000L
 
 private fun JsonObject.checkSuccess(rejection: FnOsAuthError) {
   when (field("result")) {

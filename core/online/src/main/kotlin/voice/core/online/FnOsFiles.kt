@@ -108,15 +108,34 @@ internal fun JsonObject.shareOwnerEntries(): JsonArray {
 
 private val ownerIdFields = setOf("users", "uids", "others", "data")
 
-internal suspend fun FnOsConnection.shareOwners(session: FnOsSession): List<FnOsShareOwner> {
+internal suspend fun FnOsConnection.shareOwners(session: FnOsSession): Map<Long, String?> {
   val response = signed(fnOsMessage("file.share.listOthers"), session.secret, streamField = "uid")
-  return (response["uid"] as JsonArray).map { entry ->
-    val user = entry as? JsonObject
-    val uid = user?.number("uid") ?: (entry as? JsonPrimitive)?.longOrNull ?: protocolError()
-    if (uid <= 0) protocolError()
-    val name = user?.string("name") ?: user?.string("user") ?: user?.string("username")
-    FnOsShareOwner(uid, name?.takeIf { it.isNotBlank() } ?: "UID $uid")
-  }.distinctBy { it.uid }
+  return buildMap {
+    for (entry in response["uid"] as JsonArray) {
+      val user = entry as? JsonObject
+      val uid = user?.number("uid") ?: (entry as? JsonPrimitive)?.longOrNull ?: protocolError()
+      if (uid <= 0) protocolError()
+      if (get(uid) == null) {
+        val name = user?.string("name") ?: user?.string("user") ?: user?.string("username")
+        put(uid, name?.takeIf(String::isNotBlank))
+      }
+    }
+  }
+}
+
+internal suspend fun FnOsConnection.shareOwnerNames(session: FnOsSession, ownerIds: Set<Long>): Map<Long, String> {
+  val request = fnOsMessage("user.listUG") {
+    put("users", true)
+    put("groups", false)
+  }
+  val response = signed(request, session.secret, streamField = "users")
+  return buildMap {
+    for (entry in response["users"] as JsonArray) {
+      val user = entry as? JsonObject ?: continue
+      val uid = user.number("uid") ?: continue
+      if (uid in ownerIds) user.string("user")?.takeIf(String::isNotBlank)?.let { put(uid, it) }
+    }
+  }
 }
 
 internal suspend fun FnOsConnection.sharedFolders(session: FnOsSession, owner: FnOsShareOwner): List<FnOsFile> {
