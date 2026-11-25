@@ -169,8 +169,15 @@ class BookPlayViewModel(
   private fun onlineViewState(): BookPlayViewState? {
     val durationsVersion = remember { onlinePlaybackCatalog.durationsVersion }
       .collectAsState().value
+    // a settings toggle (skip silence, speed, gain, ...) re-fetches the book,
+    // otherwise the synthesized copy stays stale until the next app start and
+    // the toggle never appears to take effect
+    val settingsVersion = remember { onlinePlaybackCatalog.settingsVersion }
+      .collectAsState().value
+    // keep showing the previous book while the refetch runs: resetting to null
+    // would tear the whole screen (and any open menu) down for one frame
     var baseBook by remember(bookId) { mutableStateOf<Book?>(null) }
-    LaunchedEffect(bookId, durationsVersion) {
+    LaunchedEffect(bookId, durationsVersion, settingsVersion) {
       // the book may need a moment when it comes from the search stash; the
       // measured durations arrive right after the first stream open, so the
       // book is refetched on every durationsVersion bump and the total times

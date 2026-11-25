@@ -445,12 +445,49 @@ class BookPlayViewModelTest {
     }
   }
 
+  @Test
+  fun `online settings toggle updates skip silence immediately`() = scope.runTest {
+    val onlineBookId = BookId(OnlineUri.buildBookUri(SOURCE, ONLINE_BOOK_ID))
+    val settingsVersion = MutableStateFlow(0)
+    // the catalog synthesizes the book from what the store holds, so after a
+    // toggle the next book() call carries the new value. Before the fix the
+    // view state fetched the book once and never again: the persisted toggle
+    // stayed invisible until the app restarted.
+    val persistedSkipSilence = MutableStateFlow(false)
+    val viewModel = onlineViewModel(
+      onlineBookId = onlineBookId,
+      settingsVersion = settingsVersion,
+      persistedSkipSilence = persistedSkipSilence,
+    )
+
+    backgroundScope.launchMolecule(RecompositionMode.Immediate) {
+      viewModel.viewState()
+    }.test {
+      var state = awaitItem()
+      while (state == null) {
+        state = awaitItem()
+      }
+      assertEquals(expected = false, actual = state.skipSilence)
+
+      // the toggle persists the new value and bumps the version
+      persistedSkipSilence.value = true
+      settingsVersion.value = 1
+      var updated = awaitItem()
+      while (updated == null) {
+        updated = awaitItem()
+      }
+      assertEquals(expected = true, actual = updated.skipSilence)
+    }
+  }
+
   private fun onlineViewModel(
     onlineBookId: BookId,
     resolvingBooks: MutableStateFlow<Set<String>> = MutableStateFlow(emptySet()),
     buffering: MutableStateFlow<Boolean> = MutableStateFlow(false),
     playStateFlow: MutableStateFlow<PlayStateManager.PlayState> = MutableStateFlow(PlayStateManager.PlayState.Paused),
     livePlaybackFlow: MutableStateFlow<LivePlaybackState?> = MutableStateFlow(null),
+    settingsVersion: MutableStateFlow<Int> = MutableStateFlow(0),
+    persistedSkipSilence: MutableStateFlow<Boolean> = MutableStateFlow(false),
   ): BookPlayViewModel {
     val onlineBook = book().update { it.copy(id = onlineBookId) }
     return BookPlayViewModel(
@@ -470,8 +507,13 @@ class BookPlayViewModelTest {
         every { isOnlineBookId(any()) } returns true
         every { playbackErrors } returns MutableSharedFlow()
         every { durationsVersion } returns MutableStateFlow(0)
+        every { this@mockk.settingsVersion } returns settingsVersion
         every { this@mockk.resolvingBooks } returns resolvingBooks
-        coEvery { book(onlineBookId) } returns onlineBook
+        // like the real catalog, every fetch reflects the value the store holds
+        coEvery { book(onlineBookId) } answers {
+          val content = onlineBook.content.copy(skipSilence = persistedSkipSilence.value)
+          onlineBook.copy(content = content)
+        }
         coEvery { onlineCover(onlineBookId) } returns null
       },
       currentBookStoreId = MemoryDataStore(null),
