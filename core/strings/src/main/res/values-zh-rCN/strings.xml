@@ -421,6 +421,13 @@
     <string name="fnos_library_title">飞牛 NAS</string>
     <string name="fnos_registered_folders">听书目录</string>
     <string name="fnos_choose_folder">选择 NAS 目录</string>
+    <string name="fnos_my_files">我的文件</string>
+    <string name="fnos_shared_by_others">他人共享</string>
+    <string name="fnos_no_shared_folders">当前账号在这里没有可查看的共享目录。</string>
+    <string name="fnos_open_by_path">按路径打开</string>
+    <string name="fnos_original_path">目录原始路径</string>
+    <string name="fnos_shared_path_hint">在飞牛文件管理的「详细信息」中复制共享目录的原始路径，例如 /vol1/1000/有声书。</string>
+    <string name="fnos_open_folder">打开目录</string>
     <string name="fnos_add_folder">添加目录</string>
     <string name="fnos_library_empty">选好目录后，有声书会出现在书架中。</string>
     <string name="fnos_folder_empty">这个目录是空的。</string>

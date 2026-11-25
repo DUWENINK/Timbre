@@ -69,6 +69,12 @@ public class FnOsAccountRepository internal constructor(
   public suspend fun listFiles(account: FnOsAccount, path: String): List<FnOsFile> =
     withSession(account) { session -> client.listFiles(session, path) }
 
+  public suspend fun listShareOwners(account: FnOsAccount): List<FnOsShareOwner> =
+    withSession(account) { session -> client.listShareOwners(session) }
+
+  public suspend fun listSharedFolders(account: FnOsAccount, owner: FnOsShareOwner): List<FnOsFile> =
+    withSession(account) { session -> client.listSharedFolders(session, owner) }
+
   public suspend fun prepareRead(account: FnOsAccount, path: String, forceRefresh: Boolean = false): FnOsReadRequest =
     withSession(account) { session ->
       val cached = tickets[path]

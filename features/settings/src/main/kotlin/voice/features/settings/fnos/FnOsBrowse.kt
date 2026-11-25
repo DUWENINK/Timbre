@@ -6,23 +6,29 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -37,6 +43,8 @@ import kotlinx.coroutines.launch
 import voice.core.common.rootGraphAs
 import voice.core.online.FnOsAuthError
 import voice.core.online.FnOsAuthException
+import voice.core.online.FnOsShareOwner
+import voice.core.online.fnOsFolderPath
 import voice.core.ui.icons.VoiceIcons
 import voice.navigation.Destination
 import voice.navigation.NavEntryProvider
@@ -52,8 +60,10 @@ interface FnOsBrowseProvider {
       NavEntry(key) {
         FnOsBrowse(
           path = key.path,
+          sharedBy = key.sharedBy?.let { FnOsShareOwner(it.uid, it.name) },
           folders = rootGraphAs<FnOsSettingsProvider>().fnOsFolders,
-          onOpen = { navigator.goTo(key.copy(path = it)) },
+          onOpen = { navigator.goTo(Destination.FnOsBrowse(key.origin, path = it)) },
+          onSelectOwner = { navigator.goTo(key.copy(sharedBy = Destination.FnOsBrowse.SharedBy(it.uid, it.name))) },
           onImported = { navigator.openShelf(key.origin) },
           onBack = navigator::goBack,
         )
@@ -70,23 +80,30 @@ private sealed interface Listing {
 @Composable
 private fun FnOsBrowse(
   path: String,
+  sharedBy: FnOsShareOwner?,
   folders: FnOsFolderActions,
   onOpen: (String) -> Unit,
+  onSelectOwner: (FnOsShareOwner) -> Unit,
   onImported: () -> Unit,
   onBack: () -> Unit,
 ) {
+  val atRoot = path.isEmpty() && sharedBy == null
+  var showShared by rememberSaveable { mutableStateOf(false) }
+  val listingShares = sharedBy != null || (atRoot && showShared)
   var attempt by remember { mutableIntStateOf(0) }
-  val listing by produceState<Listing>(Listing.Loading, path, attempt) {
-    value = Listing.Loading
-    value = try {
-      Listing.Ready(folders.browse(path))
-    } catch (e: Exception) {
-      Listing.Failed(e.folderError())
+  val listing by key(path, sharedBy, listingShares, attempt) {
+    produceState<Listing>(Listing.Loading, folders) {
+      value = try {
+        Listing.Ready(if (listingShares) folders.browseShares(sharedBy) else folders.browse(path))
+      } catch (e: Exception) {
+        Listing.Failed(e.folderError())
+      }
     }
   }
   val scope = rememberCoroutineScope()
   var saving by remember { mutableStateOf(false) }
   var error by remember { mutableStateOf<Int?>(null) }
+  var enteringPath by rememberSaveable { mutableStateOf(false) }
 
   Scaffold(topBar = {
     TopAppBar(
@@ -99,12 +116,21 @@ private fun FnOsBrowse(
     )
   }) { padding ->
     LazyColumn(contentPadding = padding) {
-      item {
-        Text(
-          path.ifEmpty { stringResource(StringsR.string.fnos_library_title) },
-          modifier = Modifier.padding(16.dp),
-          style = MaterialTheme.typography.titleMedium,
-        )
+      if (atRoot) {
+        item {
+          PrimaryTabRow(selectedTabIndex = if (showShared) 1 else 0) {
+            Tab(selected = !showShared, onClick = { showShared = false }, text = { Text(stringResource(StringsR.string.fnos_my_files)) })
+            Tab(selected = showShared, onClick = { showShared = true }, text = { Text(stringResource(StringsR.string.fnos_shared_by_others)) })
+          }
+        }
+      } else {
+        item {
+          Text(
+            sharedBy?.name ?: path,
+            modifier = Modifier.padding(16.dp),
+            style = MaterialTheme.typography.titleMedium,
+          )
+        }
       }
       when (val result = listing) {
         Listing.Loading -> item { CircularProgressIndicator(modifier = Modifier.padding(16.dp)) }
@@ -144,8 +170,20 @@ private fun FnOsBrowse(
               }
             }
           }
-          if (directory.entries.isEmpty()) {
-            item { Text(stringResource(StringsR.string.fnos_folder_empty), modifier = Modifier.padding(16.dp)) }
+          items(directory.owners, key = { it.uid }) { owner ->
+            ListItem(
+              modifier = Modifier.fillMaxWidth().clickable { onSelectOwner(owner) },
+              leadingContent = { Icon(VoiceIcons.Person, contentDescription = null) },
+              trailingContent = { Icon(VoiceIcons.ChevronRight, contentDescription = null) },
+            ) { Text(owner.name) }
+          }
+          if (directory.entries.isEmpty() && directory.owners.isEmpty()) {
+            item {
+              Text(
+                stringResource(if (listingShares) StringsR.string.fnos_no_shared_folders else StringsR.string.fnos_folder_empty),
+                modifier = Modifier.padding(16.dp),
+              )
+            }
           }
           items(directory.entries, key = { it.path }) { entry ->
             if (entry.isDirectory) {
@@ -159,8 +197,50 @@ private fun FnOsBrowse(
           }
         }
       }
+      if (listingShares && listing !is Listing.Loading) {
+        item {
+          TextButton(onClick = { enteringPath = true }, modifier = Modifier.padding(horizontal = 8.dp)) {
+            Text(stringResource(StringsR.string.fnos_open_by_path))
+          }
+        }
+      }
     }
   }
+  if (enteringPath) {
+    SharedFolderPathDialog(
+      onDismiss = { enteringPath = false },
+      onOpen = { pathToOpen ->
+        enteringPath = false
+        onOpen(pathToOpen)
+      },
+    )
+  }
+}
+
+@Composable
+private fun SharedFolderPathDialog(onDismiss: () -> Unit, onOpen: (String) -> Unit) {
+  var text by rememberSaveable { mutableStateOf("") }
+  val path = fnOsFolderPath(text)
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(StringsR.string.fnos_open_by_path)) },
+    text = {
+      OutlinedTextField(
+        value = text,
+        onValueChange = { text = it },
+        label = { Text(stringResource(StringsR.string.fnos_original_path)) },
+        supportingText = { Text(stringResource(StringsR.string.fnos_shared_path_hint)) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+      )
+    },
+    confirmButton = {
+      TextButton(enabled = path != null, onClick = { path?.let(onOpen) }) { Text(stringResource(StringsR.string.fnos_open_folder)) }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) { Text(stringResource(StringsR.string.common_action_cancel)) }
+    },
+  )
 }
 
 internal fun Exception.folderError(): Int = when (this) {

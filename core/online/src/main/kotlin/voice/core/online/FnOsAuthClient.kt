@@ -143,7 +143,12 @@ internal class FnOsConnection(
         response = Json.parseToJsonElement(replies.receive()) as? JsonObject ?: malformed()
         if (response["reqid"] != request["reqid"]) continue
         if (streamField == null) return@withTimeoutOrNull response
-        val chunk = response[streamField] ?: (response["data"] as? JsonArray).takeIf { streamField == "files" }
+        response.checkFileResult()
+        val chunk = when (streamField) {
+          "uid" -> response.shareOwnerEntries()
+          "files" -> response["files"] ?: response["data"] as? JsonArray
+          else -> response[streamField]
+        }
         if (chunk != null && chunk != JsonNull) items.addAll(chunk as? JsonArray ?: malformed())
         if ("result" in response || "errno" in response || "errmsg" in response) break
       } while (true)
@@ -256,6 +261,12 @@ public class FnOsAuthClient {
 
   internal suspend fun listFiles(session: FnOsSession, path: String): List<FnOsFile> =
     withFileConnection(session) { listDirectory(session, path) }
+
+  internal suspend fun listShareOwners(session: FnOsSession): List<FnOsShareOwner> =
+    withFileConnection(session) { shareOwners(session) }
+
+  internal suspend fun listSharedFolders(session: FnOsSession, owner: FnOsShareOwner): List<FnOsFile> =
+    withFileConnection(session) { sharedFolders(session, owner) }
 
   internal suspend fun prepareRead(session: FnOsSession, path: String): FnOsReadRequest =
     withFileConnection(session) { downloadRequest(session, path) }

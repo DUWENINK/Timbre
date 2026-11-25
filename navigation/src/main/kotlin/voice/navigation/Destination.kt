@@ -71,7 +71,10 @@ sealed interface Destination {
   }
 
   @Serializable
-  data class FnOsBrowse(val origin: Origin, val path: String = "") : Compose {
+  data class FnOsBrowse(val origin: Origin, val path: String = "", val sharedBy: SharedBy? = null) : Compose {
+    @Serializable
+    data class SharedBy(val uid: Long, val name: String)
+
     override val trackingName: String get() = "FnOsBrowse"
   }
 

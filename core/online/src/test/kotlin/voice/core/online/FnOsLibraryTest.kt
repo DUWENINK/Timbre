@@ -81,6 +81,38 @@ class FnOsLibraryTest {
   }
 
   @Test
+  fun sharedLibraryScansTheRecipientPathAndKeepsItsBookIdWhenAccessIsRevoked() = runTest {
+    val shared = "vol01/1010/共享书架"
+    val bookPath = "$shared/西游记"
+    val chapterName = "01 #序章%20.mp3"
+    val chapterPath = "$bookPath/$chapterName"
+    val bookFile = FnOsFile("西游记", bookPath, true, 0, 0)
+    val chapter = FnOsFile(chapterName, chapterPath, false, 1234, 1000)
+    coEvery { accounts.listFiles(reader, shared) } returns listOf(bookFile)
+    coEvery { accounts.listFiles(reader, bookPath) } returns listOf(chapter)
+
+    library.register(reader, shared)
+    val book = library.books().first().single()
+    assertEquals(bookPath, FnOsLibrary.path(reader, book.uri))
+    val chapterUri = book.documentFile.children().single().uri
+    assertEquals(chapterPath, FnOsLibrary.path(reader, chapterUri))
+    assertNull(FnOsLibrary.path(other, chapterUri))
+
+    val denied = FnOsAuthException(FnOsAuthError.REJECTED)
+    coEvery { accounts.listFiles(reader, shared) } throws denied
+    val unavailable = library.books().first().single()
+    assertEquals(book.uri, unavailable.uri)
+    assertEquals(denied, unavailable.documentFile.error)
+    assertFailsWith<FnOsAuthException> { unavailable.documentFile.children() }
+    active.value = other
+    assertTrue(library.books().first().isEmpty())
+    active.value = reader
+    coEvery { accounts.listFiles(reader, shared) } returns listOf(bookFile)
+    assertEquals(chapterUri, library.books().first().single().documentFile.children().single().uri)
+    coVerify(exactly = 0) { val _ = accounts.listFiles(reader, "vol2/1010/媒体") }
+  }
+
+  @Test
   fun singleBookOpensItsRegisteredDirectoryWithoutRequiringAccessToParent() = runTest {
     coEvery { accounts.listFiles(reader, root) } returns listOf(
       FnOsFile(name = "01.mp3", path = "$root/01.mp3", isDirectory = false, size = 42L, modifiedAt = 1000L),

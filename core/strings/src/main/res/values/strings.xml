@@ -574,6 +574,13 @@
     <string name="fnos_library_title">fnOS NAS</string>
     <string name="fnos_registered_folders">Audiobook folders</string>
     <string name="fnos_choose_folder">Choose a NAS folder</string>
+    <string name="fnos_my_files">My files</string>
+    <string name="fnos_shared_by_others">Shared with me</string>
+    <string name="fnos_no_shared_folders">No shared folders are visible to this account here.</string>
+    <string name="fnos_open_by_path">Open by path</string>
+    <string name="fnos_original_path">Original folder path</string>
+    <string name="fnos_shared_path_hint">Copy the original path from the shared folder’s details in fnOS. For example, /vol1/1000/Books.</string>
+    <string name="fnos_open_folder">Open folder</string>
     <string name="fnos_add_folder">Add folder</string>
     <string name="fnos_library_empty">Add a folder from your NAS to see its audiobooks on your shelf.</string>
     <string name="fnos_folder_empty">This folder is empty.</string>

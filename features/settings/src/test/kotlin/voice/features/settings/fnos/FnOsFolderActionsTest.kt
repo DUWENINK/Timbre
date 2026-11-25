@@ -11,6 +11,7 @@ import voice.core.online.FnOsAccount
 import voice.core.online.FnOsAccountRepository
 import voice.core.online.FnOsFile
 import voice.core.online.FnOsLibrary
+import voice.core.online.FnOsShareOwner
 import voice.core.scanner.MediaScanTrigger
 import voice.navigation.Destination
 import voice.navigation.Navigator
@@ -42,6 +43,23 @@ class FnOsFolderActionsTest {
 
     assertEquals(account, folder.account)
     assertEquals(listOf(first, last, audio), folder.entries)
+  }
+
+  @Test
+  fun `shared picker uses the selected owner and imports the path returned to the reader`() = runTest {
+    val alex = FnOsShareOwner(1007, "Alex")
+    val chris = FnOsShareOwner(1011, "Chris")
+    val share = FnOsFile("Audiobooks", "vol2/1007/Media/Books", true, 0, 0)
+    coEvery { repository.listShareOwners(account) } returns listOf(chris, alex)
+    coEvery { repository.listSharedFolders(account, alex) } returns listOf(share)
+
+    assertEquals(listOf(alex, chris), actions.browseShares(null).owners)
+    val directory = actions.browseShares(alex)
+    assertEquals(account, directory.account)
+    assertEquals(listOf(share), directory.entries)
+    actions.add(directory.account, directory.entries.single().path, false)
+
+    coVerify { library.register(account, "vol2/1007/Media/Books", false) }
   }
 
   @Test

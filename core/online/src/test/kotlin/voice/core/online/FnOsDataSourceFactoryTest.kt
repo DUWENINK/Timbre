@@ -55,6 +55,21 @@ class FnOsDataSourceFactoryTest {
   }
 
   @Test
+  fun revokedSharedFileCannotReopenAfterTheNasRejectsItsDownloadTicket() {
+    val shared = "vol2/1010/媒体/共享书架/西游记/01 #序章%.mp3"
+    val chapter = FnOsLibrary.uri(account, shared)
+    every { accounts.account } returns flowOf(account)
+    coEvery { accounts.prepareRead(account, shared, false) } returns readRequest("/previous")
+    coEvery { accounts.prepareRead(account, shared, true) } throws FnOsAuthException(FnOsAuthError.REJECTED)
+    nas.enqueue(MockResponse.Builder().code(403).build())
+
+    val failure = assertFailsWith<IOException> { source.open(DataSpec(chapter)) }
+    assertEquals(FnOsAuthError.REJECTED, (failure.cause as FnOsAuthException).reason)
+    assertEquals("/previous", nas.takeRequest().url.encodedPath)
+    assertEquals(1, nas.requestCount)
+  }
+
+  @Test
   fun differentAccountCannotOpenAnExistingShelfEntry() {
     every { accounts.account } returns flowOf(account.copy(username = "different"))
     assertFailsWith<IOException> { source.open(DataSpec(fileUri)) }

@@ -34,6 +34,15 @@ class FnOsFilesTest {
   @AfterTest fun close() = server.close()
 
   @Test
+  fun copiedFolderPathsAcceptVolumePathsAndRejectWebLinksAndTraversal() {
+    assertEquals("vol2/1012/听书 #1", fnOsFolderPath("/vol2/1012/听书 #1/"))
+    assertEquals("vol2/1012/听书 #1", fnOsFolderPath("vol2/1012/听书 #1"))
+    for (invalid in listOf("", "/vol2/", "https://nas.test/share/book", "/vol2/../private", "/vol2//book")) {
+      assertEquals(null, fnOsFolderPath(invalid), invalid)
+    }
+  }
+
+  @Test
   fun rootAndChildListingsIncludeAllChunksAndPreserveSpecialNames() = runBlocking {
     serve(listOf(
       """{"files":[{"name":"听书","v":2,"uid":1010,"dir":1}]}""",
@@ -49,6 +58,80 @@ class FnOsFilesTest {
     val file = client.listFiles(session, root.first().path).single()
     assertEquals("vol2/1010/听书", requests.last()["path"]!!.jsonPrimitive.content)
     assertEquals(FnOsFile("章 #1%.mp3", "vol2/1010/听书/章 #1%.mp3", false, 42, 1750000000000), file)
+  }
+
+  @Test
+  fun listsVisibleShareOwnersAndUsesTheReportedStoragePathWithTheReadersSession() = runBlocking {
+    serve(listOf(
+      """{"users":[{"uid":1012,"name":"共享者"}]}""",
+      """{"users":[1013,1012],"uver":111677748019200,"result":"succ"}""",
+    ))
+    val owners = client.listShareOwners(session)
+    assertEquals(listOf(FnOsShareOwner(1012, "共享者"), FnOsShareOwner(1013, "UID 1013")), owners)
+    assertEquals("file.share.listOthers", requests.last().getValue("req").jsonPrimitive.content)
+    assertFalse(requests.last().containsKey("uid"))
+
+    serve(listOf(
+      """{"share":[{"path":"/vol2/1012/Books/#Audio/","link":"Library","uid":1012,"v":2,"mtim":1700000000}]}""",
+      """{"result":"succ"}""",
+    ))
+    val folder = client.listSharedFolders(session, owners.first()).single()
+    assertEquals(FnOsFile("#Audio", "vol2/1012/Books/#Audio", true, 0, 1700000000000), folder)
+    assertEquals("1012", requests.last().getValue("uid").jsonPrimitive.content)
+    assertEquals("file.share.list", requests.last().getValue("req").jsonPrimitive.content)
+    serve(listOf("""{"files":[{"name":"1.mp3","size":32}],"result":"succ"}"""))
+    val audio = client.listFiles(session, folder.path).single()
+    assertEquals("vol2/1012/Books/#Audio/1.mp3", audio.path)
+    assertEquals("session-token", requests[requests.lastIndex - 1].getValue("token").jsonPrimitive.content)
+  }
+
+  @Test
+  fun followsIdsFromTheFileManagersUidArrayToTheSelectedOwnersFolders() = runBlocking {
+    serve(listOf(
+      """{"uid":[1012],"users":[{"uid":4000,"name":"unrelated"}]}""",
+      """{"uid":["1013",1012],"uver":111677748019200,"result":"succ"}""",
+    ))
+    val owners = client.listShareOwners(session)
+    assertEquals(listOf(FnOsShareOwner(1012, "UID 1012"), FnOsShareOwner(1013, "UID 1013")), owners)
+    assertEquals("file.share.listOthers", requests.last().getValue("req").jsonPrimitive.content)
+    assertFalse("uid" in requests.last())
+
+    serve(listOf(
+      """{"share":[{"path":"/vol2/1013/Private/PhysicalName","link":"/vol01/1013/听书 #1/"}]}""",
+      """{"share":[{"link":"vol01/1013/Only Link"}],"result":"succ"}""",
+    ))
+    val folders = client.listSharedFolders(session, owners.last())
+    assertEquals(listOf("听书 #1", "Only Link"), folders.map { it.name })
+    assertEquals(listOf("vol01/1013/听书 #1", "vol01/1013/Only Link"), folders.map { it.path })
+    assertEquals("file.share.list", requests.last().getValue("req").jsonPrimitive.content)
+    assertEquals("1013", requests.last().getValue("uid").toString())
+
+    serve(listOf("""{"files":[{"name":"01.mp3"}],"result":"succ"}"""))
+    val audio = client.listFiles(session, folders.first().path).single()
+    assertEquals("vol01/1013/听书 #1", requests.last().getValue("path").jsonPrimitive.content)
+    serve(listOf("""{"download":[{"uri":"/download/chapter01"}],"result":"succ"}"""))
+    val read = client.prepareRead(session, audio.path)
+    assertEquals("file.download", requests.last().getValue("req").jsonPrimitive.content)
+    assertEquals("vol01/1013/听书 #1/01.mp3", (requests.last().getValue("files") as JsonArray).single().jsonPrimitive.content)
+    assertEquals("fnos-token=session-token", read.headers["Cookie"])
+  }
+
+  @Test
+  fun emptyVisibleOwnersAndRevokedSharesKeepTheServersMeaning() = runBlocking {
+    serve(listOf("""{"uver":111677748019200,"result":"succ"}"""))
+    assertEquals(emptyList(), client.listShareOwners(session))
+    serve(listOf("""{"uid":[],"result":"succ"}"""))
+    assertEquals(emptyList(), client.listShareOwners(session))
+    serve(listOf("""{"uid":{"invalid":true},"errno":4100}"""))
+    assertEquals(FnOsAuthError.REJECTED, assertFailsWith<FnOsAuthException> { client.listShareOwners(session) }.reason)
+    serve(listOf("""{"uid":[1012]}""", """{"uid":false,"errmsg":"access denied"}"""))
+    assertEquals(FnOsAuthError.REJECTED, assertFailsWith<FnOsAuthException> { client.listShareOwners(session) }.reason)
+    serve(listOf("""{"users":[{"name":"Missing explicit UID"}],"result":"succ"}"""))
+    assertEquals(FnOsAuthError.PROTOCOL, assertFailsWith<FnOsAuthException> { client.listShareOwners(session) }.reason)
+    serve(listOf("""{"result":"fail","errno":4100,"errmsg":"path not found"}"""))
+    assertEquals(FnOsAuthError.REJECTED, assertFailsWith<FnOsAuthException> {
+      client.listSharedFolders(session, FnOsShareOwner(1012, "Other account"))
+    }.reason)
   }
 
   @Test
