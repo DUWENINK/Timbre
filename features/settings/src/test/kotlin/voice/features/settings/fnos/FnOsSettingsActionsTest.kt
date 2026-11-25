@@ -11,11 +11,13 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import voice.core.online.FnOsAccountRepository
+import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import voice.core.strings.R as StringsR
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FnOsSettingsActionsTest {
@@ -30,7 +32,10 @@ class FnOsSettingsActionsTest {
         receivedCodes += requestCode()
       }
       val actions = FnOsSettingsActions(repository, this)
-      actions.edit()
+      actions.login("nas", "user", "password")
+      actions.cancel()
+      runCurrent()
+      assertFalse(actions.working)
       actions.login("nas", "user", "password")
       runCurrent()
       assertTrue(actions.awaitingCode)
@@ -39,7 +44,6 @@ class FnOsSettingsActionsTest {
       runCurrent()
       assertFalse(actions.awaitingCode)
       assertFalse(actions.working)
-      assertTrue(actions.editing)
       assertNull(actions.error)
       actions.submitCode("111111")
 
@@ -50,10 +54,26 @@ class FnOsSettingsActionsTest {
       runCurrent()
       assertEquals(listOf("012345"), receivedCodes)
       assertFalse(actions.working)
-      assertFalse(actions.editing)
       coVerify(exactly = 2) { repository.login(any(), any(), any(), any()) }
     } finally {
       Dispatchers.resetMain()
     }
+  }
+
+  @Test
+  fun `a failed logout can be retried`() = runTest {
+    val repository = mockk<FnOsAccountRepository>()
+    coEvery { repository.logout() } throws IOException()
+    val actions = FnOsSettingsActions(repository, this)
+    actions.logout()
+    runCurrent()
+    assertEquals(StringsR.string.fnos_storage_error, actions.error)
+    assertFalse(actions.working)
+
+    coEvery { repository.logout() } returns Unit
+    actions.logout()
+    runCurrent()
+    assertNull(actions.error)
+    assertFalse(actions.working)
   }
 }

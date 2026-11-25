@@ -1,11 +1,15 @@
 package voice.features.settings.fnos
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -16,11 +20,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
@@ -28,10 +34,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavEntry
 import dev.zacsweers.metro.AppScope
@@ -97,7 +105,7 @@ private fun FnOsSettings(
   Scaffold(
     topBar = {
       TopAppBar(
-        title = { Text(stringResource(StringsR.string.fnos_account)) },
+        title = { Text(stringResource(StringsR.string.fnos_library_title)) },
         navigationIcon = {
           IconButton(onClick = onBack) {
             Icon(VoiceIcons.ArrowBack, stringResource(StringsR.string.common_action_close))
@@ -107,7 +115,7 @@ private fun FnOsSettings(
     },
   ) { insets ->
     Column(
-      modifier = Modifier.padding(insets).imePadding().verticalScroll(rememberScrollState()).padding(16.dp),
+      modifier = Modifier.fillMaxWidth().padding(insets).imePadding().verticalScroll(rememberScrollState()).padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       val savedAccount = when (val state = accountState) {
@@ -122,28 +130,18 @@ private fun FnOsSettings(
         }
         is AccountState.Loaded -> state.account
       }
-      if (savedAccount == null || actions.editing) {
-        FnOsLoginForm(savedAccount, enabled = !actions.working, onLogin = actions::login)
-        if (actions.working || actions.editing) {
+      if (savedAccount == null) {
+        FnOsLoginForm(enabled = !actions.working, onLogin = actions::login)
+        if (actions.working && !actions.awaitingCode) {
           TextButton(onClick = actions::cancel) { Text(stringResource(StringsR.string.common_action_cancel)) }
         }
       } else {
-        Text(stringResource(StringsR.string.fnos_saved_account), style = MaterialTheme.typography.labelLarge)
-        Text(savedAccount.username, style = MaterialTheme.typography.titleLarge)
-        Text(savedAccount.address)
-        FnOsLibrarySection(savedAccount, folders, onBrowse, onShelf)
-        Button(enabled = !actions.working, onClick = actions::verify) {
-          Text(stringResource(StringsR.string.fnos_verify))
-        }
-        TextButton(enabled = !actions.working, onClick = actions::edit) {
-          Text(stringResource(StringsR.string.fnos_sign_in_again))
-        }
-        TextButton(enabled = !actions.working, onClick = actions::logout) {
-          Text(stringResource(StringsR.string.fnos_sign_out))
+        FnOsAccountRow(savedAccount, enabled = !actions.working, onLogout = actions::logout)
+        key(savedAccount) {
+          FnOsLibrarySection(savedAccount, folders, onBrowse, onShelf)
         }
       }
       if (actions.working && !actions.awaitingCode) CircularProgressIndicator()
-      if (actions.verified) Text(stringResource(StringsR.string.fnos_verified))
       actions.error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
     }
   }
@@ -159,13 +157,40 @@ private sealed interface AccountState {
 }
 
 @Composable
+private fun FnOsAccountRow(account: FnOsAccount, enabled: Boolean, onLogout: () -> Unit) {
+  Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainer) {
+    Row(
+      modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 16.dp, bottom = 16.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
+        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+          Icon(VoiceIcons.Person, contentDescription = null)
+        }
+      }
+      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(account.username, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(
+          account.address,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 2,
+          overflow = TextOverflow.Ellipsis,
+        )
+      }
+      TextButton(onClick = onLogout, enabled = enabled) { Text(stringResource(StringsR.string.fnos_sign_out)) }
+    }
+  }
+}
+
+@Composable
 private fun FnOsLoginForm(
-  account: FnOsAccount?,
   enabled: Boolean,
   onLogin: (String, String, String) -> Unit,
 ) {
-  var address by rememberSaveable(account?.address) { mutableStateOf(account?.address.orEmpty()) }
-  var username by rememberSaveable(account?.username) { mutableStateOf(account?.username.orEmpty()) }
+  var address by rememberSaveable { mutableStateOf("") }
+  var username by rememberSaveable { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
   OutlinedTextField(
     value = address,

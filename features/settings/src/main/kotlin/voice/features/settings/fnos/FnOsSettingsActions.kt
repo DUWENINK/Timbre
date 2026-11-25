@@ -25,40 +25,19 @@ internal class FnOsSettingsActions(
   val working get() = operation != null
   val awaitingCode get() = pendingCode != null
 
-  var editing by mutableStateOf(false)
-    private set
-  var verified by mutableStateOf(false)
-    private set
   var error by mutableStateOf<Int?>(null)
     private set
 
   fun login(address: String, username: String, password: String) = runAction {
     repository.login(address, username, password, ::requestCode)
-    editing = false
-  }
-
-  fun verify() = runAction {
-    repository.verify()
-    verified = true
   }
 
   fun logout() = runAction {
     repository.logout()
   }
 
-  fun edit() {
-    error = null
-    verified = false
-    editing = true
-  }
-
   fun cancel() {
-    if (working) {
-      operation?.cancel()
-    } else {
-      error = null
-      editing = false
-    }
+    operation?.cancel()
   }
 
   fun submitCode(code: String) {
@@ -78,7 +57,6 @@ internal class FnOsSettingsActions(
   private fun runAction(action: suspend () -> Unit) {
     if (working) return
     error = null
-    verified = false
     val job = scope.launch(start = CoroutineStart.LAZY) {
       try {
         action()
@@ -88,11 +66,10 @@ internal class FnOsSettingsActions(
         error = e.reason.messageResource()
       } catch (_: Exception) {
         error = StringsR.string.fnos_storage_error
-      } finally {
-        operation = null
       }
     }
     operation = job
+    job.invokeOnCompletion { operation = null }
     job.start()
   }
 }

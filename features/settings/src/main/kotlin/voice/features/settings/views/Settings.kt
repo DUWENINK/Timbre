@@ -127,10 +127,10 @@ private fun Settings(
       item {
         ListItem(
           modifier = Modifier.clickable(onClick = listener::openFnOsSettings),
-          leadingContent = { Icon(imageVector = VoiceIcons.LockOpen, contentDescription = null) },
+          leadingContent = { Icon(imageVector = VoiceIcons.Laptop, contentDescription = null) },
           supportingContent = { Text(stringResource(StringsR.string.fnos_settings_summary)) },
         ) {
-          Text(stringResource(StringsR.string.fnos_account))
+          Text(stringResource(StringsR.string.fnos_library_title))
         }
       }
       item {
