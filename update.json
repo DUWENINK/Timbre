@@ -2,5 +2,5 @@
   "versionName": "3.7.5",
   "versionCode": 653,
   "releaseUrl": "https://github.com/kxdebug/Timbre/releases/latest",
-  "releaseNotes": "<!-- Release notes generated using configuration in .github/release.yml at fbf47ff04d07beb804a77018631c4feb8e15331b -->\n\n## What's Changed\n### 🧱 Other Changes\n* fix(playback): 在线书播放设置即时生效，修复 #126 跳过空白需重启 by @yananZz in https://github.com/kxdebug/Timbre/pull/127\n\n## New Contributors\n* @yananZz made their first contribution in https://github.com/kxdebug/Timbre/pull/127\n\n**Full Changelog**: https://github.com/kxdebug/Timbre/compare/v3.7.0...v3.7.5"
+  "releaseNotes": "> ⚠️ **常规使用听书源无需更新** —— 本次以新能力为主，现有源的使用方式不受影响。\n\n## 新增\n\n- **支持直播流（HLS）**：央视等电台 / 电视直播源可以听了；播放页自动显示「直播中」红点，不再出现来回跳的进度条，也不记录播放位置\n- **发现页长榜单支持翻页**：滑到底部自动加载下一页，不再只有前 30 条\n\n## 改进\n\n- m3u8 支持：AES-128 加密流、防盗链（Referer / Cookie 注入）、清单链接过期自动重试\n- 接口源章节支持一次返回完整列表（此前部分源只能看到前 30 / 50 集）\n\n## 修复\n\n- 若干播放与稳定性问题\n\n---\n\n接口源开发者请注意：章节契约已更新（一次返回全部章节、直播章节 `duration` 填 `0`），详见仓库 `samples/extension-dev-guide.md`。\n\n## 修复（重新发布）\n\n- 修复在线书「跳过空白部分」勾选后不立即生效、需要重启 App 才反映的问题（#126、#127）\n- 修复播放页三点菜单点击后立即收起、勾选状态来回跳变的问题\n- 无障碍：该菜单项恢复「已选中 / 未选中」播报\n\n> 版本名仍为 3.7.5，versionCode 提升到 653，以便已装 652 的用户收到更新提示。\n\n---\n\n**Full Changelog**: https://github.com/kxdebug/Timbre/compare/v3.7.0...v3.7.5\n\n感谢 @yananZz 的首次贡献（#127）。"
 }
