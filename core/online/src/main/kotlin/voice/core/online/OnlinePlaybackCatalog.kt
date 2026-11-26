@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import voice.core.data.Book
 import voice.core.data.BookContent
@@ -162,6 +163,14 @@ public class OnlinePlaybackCatalog(
   public val durationsVersion: kotlinx.coroutines.flow.StateFlow<Int> get() = _durationsVersion
 
   /**
+   * Bumped whenever a playback setting (skip silence, skip intro/outro, speed,
+   * gain) is persisted, so the player screen re-assembles the book and the
+   * toggles reflect the change immediately instead of after a restart.
+   */
+  private val _settingsVersion = MutableStateFlow(0)
+  public val settingsVersion: kotlinx.coroutines.flow.StateFlow<Int> get() = _settingsVersion
+
+  /**
    * Durations measured from the actual stream, keyed by the canonical chapter
    * uri. Sources that do not report durations get corrected here after the
    * first play of a chapter.
@@ -227,6 +236,12 @@ public class OnlinePlaybackCatalog(
         }
       }
     }.onFailure { Logger.w("Failed to persist an online book setting of ${bookRef.key}: $it") }
+    // tell the UI the setting changed: the synthesized book of the player
+    // screen is otherwise only assembled once and the toggle would stay
+    // visually unchanged until the app restarts. update{} because several
+    // settings can be persisted concurrently and a read-modify-write may
+    // otherwise drop an increment
+    _settingsVersion.update { it + 1 }
   }
 
   /** Persists the intro skip of an online book (in milliseconds). */

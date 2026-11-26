@@ -12,7 +12,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import voice.core.strings.R
 import voice.core.ui.icons.VoiceIcons
 
@@ -39,10 +46,18 @@ internal fun OverflowMenu(
       expanded = expanded,
       onDismissRequest = { expanded = false },
     ) {
+      // The checkbox is display only; the row carries the toggle semantics, so
+      // TalkBack announces "checked/unchecked" for the item itself instead of
+      // reading a disabled checkbox. The menu stays open so the new state is
+      // visible immediately (the view state may land a moment later for online
+      // books) instead of closing on an apparently dead tap. Only the semantics
+      // state is added here: Modifier.toggleable would register a second click
+      // handler next to the item's own onClick and toggle twice.
       DropdownMenuItem(
-        onClick = {
-          expanded = false
-          onSkipSilenceClick()
+        onClick = onSkipSilenceClick,
+        modifier = Modifier.semantics {
+          role = Role.Checkbox
+          toggleableState = ToggleableState(skipSilence)
         },
         text = {
           Text(text = stringResource(id = R.string.playback_option_skip_silence))
@@ -50,10 +65,8 @@ internal fun OverflowMenu(
         trailingIcon = {
           Checkbox(
             checked = skipSilence,
-            onCheckedChange = {
-              expanded = false
-              onSkipSilenceClick()
-            },
+            onCheckedChange = null,
+            modifier = Modifier.clearAndSetSemantics {},
           )
         },
       )
